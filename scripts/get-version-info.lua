@@ -1,7 +1,7 @@
 -- scripts/get-version-info.lua
 -- Read version information from the most recent git tag and short SHA.
 
-local function get_version_info()
+function get_version_info()
     local version_str = "0.0.0"
     local version     = { major = 0, minor = 0, patch = 0 }
 
@@ -30,5 +30,3 @@ local function get_version_info()
         short_sha   = short_sha,
     }
 end
-
-return { get_version_info = get_version_info }
