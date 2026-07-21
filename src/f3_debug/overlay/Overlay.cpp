@@ -14,8 +14,8 @@
 #include <mc/deps/core/math/Color.h>
 #include <mc/deps/core/utility/NonOwnerPointer.h>
 #include <mc/deps/input/RectangleArea.h>
-#include <mc/deps/minecraft_renderer/framebuilder/CaretMeasureData.h>
-#include <mc/deps/minecraft_renderer/framebuilder/TextMeasureData.h>
+#include <mc/client/gui/CaretMeasureData.h>
+#include <mc/client/gui/TextMeasureData.h>
 #include <mc/world/level/dimension/Dimension.h>
 
 #include <algorithm>

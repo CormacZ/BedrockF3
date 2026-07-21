@@ -36,8 +36,3 @@ WarningsAsErrors: '*'
 # Header filter: only check our own headers, not third-party transitives
 # pulled in via LeviLamina / mc/ includes.
 HeaderFilterRegex: '^.*/src/.*'
-
-# Use the project-local compile_commands.json that xmake generates.
-# (xmake check clang.tidy handles this automatically; included here for
-#  future IDE integration.)
-CompileCommandsDir: .
