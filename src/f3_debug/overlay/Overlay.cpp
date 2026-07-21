@@ -150,10 +150,13 @@ void draw(MinecraftUIRenderContext& ctx) {
     // Background. fillRectangle is the supported way to draw a solid
     // rectangle underneath HUD text.
     {
+        // RectangleArea's 4-float ctor requires the bool checkForValidity
+        // 5th arg. Pass true to opt into the bounds check.
         RectangleArea bg{
             x0, y0,
             x0 + static_cast<float>(boxW),
-            y0 + static_cast<float>(boxH)
+            y0 + static_cast<float>(boxH),
+            /*checkForValidity=*/true
         };
         mce::Color bgColor{0.0f, 0.0f, 0.0f, kColorBg[3]};
         ctx.fillRectangle(bg, bgColor, 1.0f);
@@ -170,16 +173,19 @@ void draw(MinecraftUIRenderContext& ctx) {
             x0 + static_cast<float>(kPadding),
             y,
             x0 + static_cast<float>(kPadding) + static_cast<float>(maxPxW),
-            y + static_cast<float>(linePxH)
+            y + static_cast<float>(linePxH),
+            /*checkForValidity=*/true
         };
         mce::Color lineColor{l.color.r, l.color.g, l.color.b, l.color.a};
+        // ui::TextAlignment has only Left, Right, Center. Use Left for
+        // top-left anchored text rendering.
         ctx.drawText(
             font,
             lineRect,
             std::string{l.text},
             lineColor,
             1.0f,
-            ui::TextAlignment::TopLeft,
+            ui::TextAlignment::Left,
             TextMeasureData{},
             CaretMeasureData{});
         y += static_cast<float>(linePxH);

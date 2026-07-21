@@ -7,12 +7,9 @@
 
 #pragma once
 
-#include <ll/api/input/KeyHandle.h>
 #include <ll/api/mod/NativeMod.h>
 
 #include "f3_debug/config/Config.h"
-
-#include <optional>
 
 namespace ll::event {
 class ListenerBase;
@@ -43,9 +40,12 @@ private:
     config::F3Config     mConfig{};
     bool mOverlayVisible = true;
 
-    // Owned by the EventBus / KeyRegistry respectively. Reset to unregister.
+    // Owned by the EventBus. Reset to unregister the render listener.
+    // The F3 toggle key lives in ll::input::KeyRegistry, which keeps the
+    // key entry alive for the lifetime of the registered handlers; the
+    // handler closure holds a reference to the F3Debug singleton, so the
+    // toggle key effectively lives for the mod's lifetime.
     std::shared_ptr<ll::event::ListenerBase> mRenderListener;
-    std::optional<ll::input::KeyHandle>      mToggleKey;
 };
 
 } // namespace f3_debug
