@@ -1,7 +1,13 @@
 -- scripts/json.lua
 -- Minimal JSON encoder. Sufficient for generating manifest.json.
+--
+-- xmake's import() resolves script symbols through the module's global
+-- environment, not through the script's return value. Declaring
+-- `function encode(...)` (no local) puts the function in the module
+-- globals, where the caller can reach it via `import(...).encode(...)`.
+-- A trailing `return { encode = ... }` is silently ignored by import.
 
-local function encode(value)
+function encode(value)
     local t = type(value)
     if t == "nil" then
         return "null"
@@ -74,5 +80,3 @@ local function encode(value)
     end
     return "null"
 end
-
-return { encode = encode }
