@@ -10,6 +10,8 @@
 #include <ll/api/input/KeyHandle.h>
 #include <ll/api/mod/NativeMod.h>
 
+#include "f3_debug/config/Config.h"
+
 #include <optional>
 
 namespace ll::event {
@@ -38,6 +40,7 @@ public:
 
 private:
     ll::mod::NativeMod& mSelf;
+    config::F3Config     mConfig{};
     bool mOverlayVisible = true;
 
     // Owned by the EventBus / KeyRegistry respectively. Reset to unregister.

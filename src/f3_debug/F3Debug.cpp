@@ -20,11 +20,11 @@ bool F3Debug::load() {
     auto& logger = getSelf().getLogger();
     logger.info("BedrockF3 loading");
 
-    if (auto result = config::load(getSelf().getConfigDir() / "config.json"); !result) {
+    if (auto result = config::load(mConfig, getSelf().getConfigDir() / "config.json"); !result) {
         logger.warn("Could not load config ({}); using defaults", result.error());
     }
 
-    mOverlayVisible = config::F3Config{}.visibleOnStartup;
+    mOverlayVisible = mConfig.visibleOnStartup;
     return true;
 }
 

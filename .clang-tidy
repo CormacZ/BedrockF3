@@ -33,6 +33,8 @@ Checks: >
 # Fail the PR check on any warning, not just hard errors.
 WarningsAsErrors: '*'
 
-# Header filter: only check our own headers, not third-party transitives
-# pulled in via LeviLamina / mc/ includes.
-HeaderFilterRegex: '^.*/src/.*'
+# Header filter: only emit warnings for our own project headers. Without
+# this, clang-tidy walks every transitively-included LeviLamina and
+# Minecraft header and floods the output with thousands of unrelated
+# warnings from code we do not own.
+HeaderFilterRegex: '^.*/src/f3_debug/.*\.h$'
