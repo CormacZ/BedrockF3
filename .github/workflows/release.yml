@@ -8,11 +8,6 @@ on:
 permissions:
   contents: write
 
-# Force all JavaScript actions to run on the Node.js 24 runtime. See
-# https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 jobs:
   release-windows:
     name: Windows release
@@ -20,7 +15,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           submodules: recursive
           fetch-depth: 0
@@ -36,7 +31,7 @@ jobs:
           arch: x64
 
       - name: Cache xmake build
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             .xmake
@@ -44,6 +39,9 @@ jobs:
           key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua', 'src/**/*.cpp', 'src/**/*.h', 'tooth.json', 'manifest.json') }}
           restore-keys: |
             ${{ runner.os }}-xmake-
+
+      - name: Update xmake repos
+        run: xmake repo -u
 
       - name: Read version from tag
         id: version

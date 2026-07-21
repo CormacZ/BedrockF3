@@ -6,15 +6,6 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Force all JavaScript actions to run on the Node.js 24 runtime, which is the
-# supported runtime going forward. Several community actions (ilammy/msvc-dev-cmd,
-# xmake-io/github-action-setup-xmake, softprops/action-gh-release) are still on
-# Node 20 majors; this env var is the documented override until they ship their
-# own Node 24 majors. See:
-# https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
 jobs:
   build-windows:
     name: Windows release
@@ -22,7 +13,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           submodules: recursive
 
@@ -37,7 +28,7 @@ jobs:
           arch: x64
 
       - name: Cache xmake build
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             .xmake
@@ -45,6 +36,9 @@ jobs:
           key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua', 'src/**/*.cpp', 'src/**/*.h', 'tooth.json', 'manifest.json') }}
           restore-keys: |
             ${{ runner.os }}-xmake-
+
+      - name: Update xmake repos
+        run: xmake repo -u
 
       - name: Configure
         shell: cmd
@@ -71,7 +65,7 @@ jobs:
         run: Compress-Archive -Path bin/BedrockF3/* -DestinationPath BedrockF3-client-windows-x64.zip
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: BedrockF3-client-windows-x64
           path: BedrockF3-client-windows-x64.zip
