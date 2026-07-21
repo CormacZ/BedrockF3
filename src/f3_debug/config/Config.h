@@ -14,6 +14,12 @@ class Logger;
 namespace f3_debug::config {
 
 struct F3Config {
+    // Schema version. Bumped on any breaking field change (added, removed,
+    // type-changed, or renamed). Required by ll::config::loadConfig /
+    // saveConfig, which compare this against the on-disk "version" key
+    // and run defaultConfigUpdater to migrate older files.
+    int version = 1;
+
     // Show the overlay when the mod first loads.
     bool visibleOnStartup = true;
 
