@@ -25,24 +25,10 @@ jobs:
         with:
           xmake-version: latest
 
-      - name: Install Visual Studio Build Tools 2022
-        uses: seanmiddleditch/gha-setup-vsdevenv@v4
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
         with:
-          vsversion: '17.0'
-          components: Microsoft.VisualStudio.Component.VC.Tools.x86.x64
-          installinput: |
-            Microsoft.VisualStudio.Workload.VCTools
-            Microsoft.VisualStudio.Component.VC.Tools.x86.x64
-            Microsoft.VisualStudio.Component.Windows11SDK.22621
-
-      - name: Install LLVM (provides clang-cl)
-        uses: leethal/install-llvm-action@main
-        with:
-          version: 17.0
-          clang: true
-          lld: false
-          lldb: false
-          continue-on-error: false
+          arch: x64
 
       - name: Cache xmake build
         uses: actions/cache@v4
