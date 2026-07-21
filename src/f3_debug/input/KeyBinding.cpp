@@ -17,8 +17,7 @@ std::expected<void, std::string> registerToggleKey(F3Debug& self) {
     auto& handle   = registry.getOrCreateKey(
         kToggleKeyName,
         std::vector<int>{kF3KeyCode},
-        /*allowRemap=*/true,
-        std::weak_ptr<ll::mod::Mod>{self.getSelf().shared_from_this()});
+        /*allowRemap=*/true);  // 4th arg defaults to mod::NativeMod::current()
 
     handle.registerButtonDownHandler(
         [](FocusImpact /*focus*/, IClientInstance& /*client*/) {
