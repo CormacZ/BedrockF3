@@ -1,0 +1,43 @@
+---
+# clang-tidy configuration for BedrockF3.
+#
+# The CI lint workflow uses this file via:
+#   xmake check clang.tidy
+# which automatically picks up .clang-tidy from the project root.
+#
+# The point of this config is to fail the PR check on real type errors
+# and other compilation-time issues without doing the full build, link,
+# or prelink step. Style nits are intentionally kept loose.
+#
+# Inheritance note: clang-tidy applies the union of all parent .clang-tidy
+# files up to the user config. To keep the check list deterministic, we
+# use a single explicit Checks: line rather than relying on defaults.
+
+Checks: >
+  -*,
+  clang-diagnostic-*,
+  clang-analyzer-*,
+  bugprone-*,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-narrowing-conversions,
+  cppcoreguidelines-pro-type-member-init,
+  misc-static-assert,
+  misc-unused-parameters,
+  modernize-use-nullptr,
+  modernize-use-override,
+  performance-*,
+  readability-static-accessed-through-instance,
+  readability-identifier-naming,
+  readability-misleading-indentation
+
+# Fail the PR check on any warning, not just hard errors.
+WarningsAsErrors: '*'
+
+# Header filter: only check our own headers, not third-party transitives
+# pulled in via LeviLamina / mc/ includes.
+HeaderFilterRegex: '^.*/src/.*'
+
+# Use the project-local compile_commands.json that xmake generates.
+# (xmake check clang.tidy handles this automatically; included here for
+#  future IDE integration.)
+CompileCommandsDir: .
