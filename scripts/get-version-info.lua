@@ -1,42 +1,41 @@
 -- scripts/get-version-info.lua
--- Read version information from the most recent git tag and short SHA.
+-- Read version information from the VERSION file in the project root.
+--
+-- Why not git tags? xmake deliberately disables Lua's pcall/xpcall and
+-- provides try/catch as a custom parser feature. But try/catch is only
+-- available in xmake's own script context (xmake.lua), not in scripts
+-- loaded via import(). os.iorunv throws on non-zero exit, so a repo
+-- with no tags (or git unavailable) would crash the build. Reading from
+-- a static VERSION file avoids the issue entirely.
+--
+-- Bump the version in VERSION, or have a release-time script rewrite
+-- the file from `git describe --tags --abbrev=0`, when you want
+-- git-based versioning.
 
--- Helper: run a command and return its trimmed stdout, or nil on failure.
--- xmake's os.iorunv throws on non-zero exit, so we wrap it in pcall.
-local function try_runv(argv)
-    local ok, out = pcall(os.iorunv, "git", argv)
-    if not ok or out == nil then
+local function read_file(path)
+    local f = io.open(path, "r")
+    if not f then
         return nil
     end
-    return tostring(out):gsub("^%s+", ""):gsub("%s+$", "")
+    local content = f:read("*a")
+    f:close()
+    return content
 end
 
 function get_version_info()
-    local version_str = "0.0.0"
-    local version     = { major = 0, minor = 0, patch = 0 }
-    local short_sha   = "dev"
-
-    -- Read the most recent tag, e.g. "v0.1.0" or "0.1.0". A repo with no
-    -- tags returns nil, in which case we keep the 0.0.0 fallback.
-    local tag = try_runv({ "describe", "--tags", "--abbrev=0" })
-    if tag then
-        local major, minor, patch = tag:match("v?(%d+)%.(%d+)%.(%d+)")
-        if major then
-            version = { major = tonumber(major), minor = tonumber(minor), patch = tonumber(patch) }
-            version_str = string.format("%d.%d.%d", version.major, version.minor, version.patch)
-        end
-    end
-
-    local sha = try_runv({ "rev-parse", "--short", "HEAD" })
-    if sha then
-        short_sha = sha
+    local version_str = (read_file(path.join(os.projectdir(), "VERSION")) or "0.0.0")
+    version_str = version_str:gsub("^%s+", ""):gsub("%s+$", "")
+    local major, minor, patch = version_str:match("v?(%d+)%.(%d+)%.(%d+)")
+    if not major then
+        major, minor, patch = 0, 0, 0
+        version_str = "0.0.0"
     end
 
     return {
         version_str = version_str,
-        major       = version.major,
-        minor       = version.minor,
-        patch       = version.patch,
-        short_sha   = short_sha,
+        major       = tonumber(major),
+        minor       = tonumber(minor),
+        patch       = tonumber(patch),
+        short_sha   = "dev",
     }
 end
