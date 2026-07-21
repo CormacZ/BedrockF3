@@ -6,6 +6,15 @@ on:
   pull_request:
   workflow_dispatch:
 
+# ilammy/msvc-dev-cmd@v1 (the latest available, v1.13.0) is still on the
+# Node 20 runtime. The other actions in this workflow (checkout, cache,
+# upload-artifact) have all been bumped to Node 24 majors. Setting
+# FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 suppresses the deprecation warning
+# and forces the one remaining Node 20 action to run on Node 24.
+# See https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 jobs:
   build-windows:
     name: Windows release
