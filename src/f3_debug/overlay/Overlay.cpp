@@ -7,6 +7,7 @@
 #include <ll/api/memory/Memory.h>
 #include <ll/api/service/TargetedBedrock.h>
 
+#include <mc/client/game/ClientInstance.h>
 #include <mc/client/game/IClientInstance.h>
 #include <mc/client/renderer/screen/MinecraftUIRenderContext.h>
 #include <mc/client/gui/FontHandle.h>
