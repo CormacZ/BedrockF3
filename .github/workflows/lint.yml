@@ -1,0 +1,52 @@
+name: lint
+
+# Fast static check that catches type errors, missing includes, and other
+# compile-time issues without doing the full build, link, or prelink step.
+#
+# This is the C++ equivalent of `tsc --noEmit` for TypeScript: it parses
+# each source file, resolves all includes, and runs the standard
+# clang-tidy + clang-analyzer static checks, but does not generate code
+# or link. Cycle time is typically under 60 seconds, vs 5-10 minutes for
+# the full build workflow.
+#
+# Any error here is something `xmake` would also catch in `build.yml`,
+# but with much faster feedback. New contributors get type errors flagged
+# in the PR check list before the full build even starts.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  lint-windows:
+    name: clang-tidy
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure
+        shell: cmd
+        run: xmake f -p windows -a x64 -m release -y
+
+      - name: Run clang-tidy
+        shell: cmd
+        run: xmake check clang.tidy -q --warning-as-error
