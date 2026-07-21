@@ -6,7 +6,7 @@
 
 #include <ll/api/memory/Memory.h>
 
-#include <mc/client/clientInstance/IClientInstance.h>
+#include <mc/client/game/IClientInstance.h>
 #include <mc/client/gui/FontHandle.h>
 #include <mc/client/gui/TextAlignment.h>
 #include <mc/client/gui/controls/UIRenderContext.h>
