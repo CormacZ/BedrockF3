@@ -7,13 +7,10 @@
 
 #pragma once
 
+#include <ll/api/input/KeyHandle.h>
 #include <ll/api/mod/NativeMod.h>
 
 #include <optional>
-
-namespace ll::input {
-class KeyHandle;
-}
 
 namespace ll::event {
 class ListenerBase;
