@@ -22,7 +22,7 @@ double FpsCounter::tick(double deltaMs) noexcept {
         if (mSamples.size() > mWindowSize) {
             mSamples.pop_front();
         }
-    } catch (const std::bad_alloc&) {
+    } catch (const std::bad_alloc&) {  // NOLINT(bugprone-empty-catch)
         // Drop the new sample and fall through to compute FPS from what we
         // already have. The next successful tick will recover.
     }

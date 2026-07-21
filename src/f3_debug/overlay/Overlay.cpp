@@ -5,8 +5,10 @@
 #include "f3_debug/util/CardinalDirection.h"
 
 #include <ll/api/memory/Memory.h>
+#include <ll/api/service/TargetedBedrock.h>
 
 #include <mc/client/game/IClientInstance.h>
+#include <mc/client/renderer/screen/MinecraftUIRenderContext.h>
 #include <mc/client/gui/FontHandle.h>
 #include <mc/client/gui/TextAlignment.h>
 #include <mc/client/gui/controls/UIRenderContext.h>
@@ -72,8 +74,8 @@ std::vector<Line> buildLines() {
     lines.push_back(makeLine(std::format("Uptime: {}", sessionState().format()), kColorBody));
     lines.push_back({}); // spacer
 
-    auto* client = ll::service::getClientInstance();
-    LocalPlayer* player = client ? client->getLocalPlayer() : nullptr;
+    auto& client = *ll::service::getClientInstance();
+    LocalPlayer* player = client.getLocalPlayer();
     if (player != nullptr) {
         const Vec3 pos = player->getPosition();
         const int chunkX = static_cast<int>(std::floor(pos.x)) >> 4;
@@ -92,7 +94,8 @@ std::vector<Line> buildLines() {
     }
 
     lines.push_back({}); // spacer
-    if (player != nullptr && player->getLevel() != nullptr) {
+    if (player != nullptr) {
+        // getLevel() returns Level& (always non-null while player is alive).
         const int dim = static_cast<int>(player->getDimensionId());
         std::string name = "Unknown";
         switch (dim) {
