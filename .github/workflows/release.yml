@@ -1,0 +1,95 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release-windows:
+    name: Windows release
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Install Visual Studio Build Tools 2022
+        uses: seanmiddleditch/gha-setup-vsdevenv@v4
+        with:
+          vsversion: '17.0'
+          components: Microsoft.VisualStudio.Component.VC.Tools.x86.x64
+          installinput: |
+            Microsoft.VisualStudio.Workload.VCTools
+            Microsoft.VisualStudio.Component.VC.Tools.x86.x64
+            Microsoft.VisualStudio.Component.Windows11SDK.22621
+
+      - name: Install LLVM (provides clang-cl)
+        uses: leethal/install-llvm-action@main
+        with:
+          version: 17.0
+          clang: true
+          lld: false
+          lldb: false
+          continue-on-error: false
+
+      - name: Cache xmake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            .xmake
+            bin
+          key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua', 'src/**/*.cpp', 'src/**/*.h', 'tooth.json', 'manifest.json') }}
+          restore-keys: |
+            ${{ runner.os }}-xmake-
+
+      - name: Read version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Configure
+        shell: cmd
+        run: xmake f -p windows -a x64 -m release -y
+
+      - name: Build
+        shell: cmd
+        run: xmake -y
+
+      - name: Verify output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path bin/BedrockF3/BedrockF3.dll)) {
+              Write-Error "BedrockF3.dll was not produced"
+              exit 1
+          }
+          if (-not (Test-Path bin/BedrockF3/manifest.json)) {
+              Write-Error "manifest.json was not produced"
+              exit 1
+          }
+
+      - name: Package release zip
+        shell: pwsh
+        run: Compress-Archive -Path bin/BedrockF3/* -DestinationPath BedrockF3-client-windows-x64.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: BedrockF3-client-windows-x64.zip

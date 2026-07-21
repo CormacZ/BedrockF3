@@ -19,15 +19,27 @@ the actual game state.
 
 From your Bedrock install directory, the one LeviLauncher manages:
 
+## Install
+
+Drag-and-drop is the path most people will use. Go to the
+[Releases page](https://github.com/CormacZ/BedrockF3/releases),
+download the latest `BedrockF3-client-windows-x64.zip`, and drop it
+into the mods page in LeviLauncher. That is the whole install.
+
+If you prefer the package manager, run this from your Bedrock install
+directory (the one LeviLauncher manages):
+
 ```
 lip install github.com/CormacZ/BedrockF3#client
 ```
 
-Restart Minecraft. Press F3.
+Or, for development, the GitHub Actions `build` workflow produces the
+same zip as an artifact on every push to `main` and every pull
+request. Open the run you care about and download
+`BedrockF3-client-windows-x64.zip` from the artifacts section.
 
-A drag-and-drop install also works: download the latest
-`BedrockF3-client-windows-x64.zip` from the Releases page and drop it
-into the mods page in LeviLauncher.
+Either way, restart Minecraft after install. Press F3 in-game to
+show or hide the panel.
 
 ## What it shows
 
