@@ -10,6 +10,9 @@ if not has_config("vs_runtime") then
     set_runtimes("MD")
 end
 
+-- Dependency declared at root scope (xmake requires this; it cannot be called inside a target).
+add_requires("levilamina", { configs = { target_type = "client" } })
+
 target("BedrockF3")
     add_cxflags(
         "/EHa",
@@ -45,7 +48,6 @@ target("BedrockF3")
     set_toolchains("clang-cl")
 
     -- Client-side build is the default; the only platform this mod supports today.
-    add_requires("levilamina", { configs = { target_type = "client" } })
     add_packages("levilamina")
 
     set_exceptions("none")
