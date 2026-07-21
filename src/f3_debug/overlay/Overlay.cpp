@@ -187,8 +187,25 @@ void draw(MinecraftUIRenderContext& ctx) {
             lineColor,
             1.0f,
             ui::TextAlignment::Left,
-            TextMeasureData{},
-            CaretMeasureData{});
+            // TextMeasureData / CaretMeasureData have no usable default
+            // constructor in LeviLamina 26.20.4 (the header says
+            // "prevent constructor by default"). Use the MCAPI ctor with
+            // the defaults the game uses for HUD debug text:
+            //   fontSize=kTextScale, no padding, shadow on, no color
+            //   symbol, no hyphen hiding, alignment=Left.
+            //   caret position 0, don't render the caret.
+            TextMeasureData{
+                kTextScale,
+                0.0f,
+                /*renderShadow=*/true,
+                /*showColorSymbol=*/false,
+                /*hideHyphen=*/false,
+                ui::TextAlignment::Left
+            },
+            CaretMeasureData{
+                /*position=*/0,
+                /*shouldRender=*/false
+            });
         y += static_cast<float>(linePxH);
     }
 
