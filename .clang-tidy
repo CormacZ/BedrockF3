@@ -37,4 +37,4 @@ WarningsAsErrors: '*'
 # this, clang-tidy walks every transitively-included LeviLamina and
 # Minecraft header and floods the output with thousands of unrelated
 # warnings from code we do not own.
-HeaderFilterRegex: '^.*/src/f3_debug/.*\.h$'
+HeaderFilterRegex: '^.*[/\\]src[/\\]f3_debug[/\\].*\.h$'

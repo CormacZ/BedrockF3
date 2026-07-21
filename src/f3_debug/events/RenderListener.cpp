@@ -15,7 +15,7 @@ std::shared_ptr<ll::event::ListenerBase> makeRenderListener() {
     return bus.emplaceListener<ll::event::render::AfterUIRenderEvent>(
         [](ll::event::render::AfterUIRenderEvent& ev) {
             if (F3Debug::getInstance().isOverlayVisible()) {
-                overlay::Overlay::draw(ev.uiRenderContext());
+                overlay::draw(ev.uiRenderContext());
             }
         });
 }

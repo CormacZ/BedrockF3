@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <ll/api/event/ListenerBase.h>
 #include <ll/api/event/render/UIRenderEvent.h>
 
 #include <functional>

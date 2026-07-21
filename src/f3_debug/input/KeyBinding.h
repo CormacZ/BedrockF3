@@ -25,10 +25,10 @@ constexpr const char* kToggleKeyName = "bedrockf3.toggle";
 
 // Register the F3 toggle key against the KeyRegistry and wire its handler
 // to F3Debug::toggleOverlay.
-std::expected<void, std::string> registerToggleKey(F3Debug& self);
+std::expected<void, std::string> registerToggleKey();
 
 // Unregister the F3 toggle key.
-void unregisterToggleKey(F3Debug& self);
+void unregisterToggleKey();
 
 } // namespace f3_debug::input
 

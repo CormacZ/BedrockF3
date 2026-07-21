@@ -12,7 +12,7 @@
 
 namespace f3_debug::input {
 
-std::expected<void, std::string> registerToggleKey(F3Debug& self) {
+std::expected<void, std::string> registerToggleKey() {
     auto& registry = ll::input::KeyRegistry::getInstance();
     auto& handle   = registry.getOrCreateKey(
         kToggleKeyName,
@@ -27,11 +27,10 @@ std::expected<void, std::string> registerToggleKey(F3Debug& self) {
     return {};
 }
 
-void unregisterToggleKey(F3Debug& self) {
+void unregisterToggleKey() {
     // KeyHandle destructor unregisters handlers. The registry releases the
     // entry when the last reference to the handle goes out of scope.
     // The handle is owned by F3Debug; nothing extra to do here.
-    (void)self;
 }
 
 } // namespace f3_debug::input
