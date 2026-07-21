@@ -9,9 +9,9 @@
 #pragma once
 
 #include <ll/api/event/render/UIRenderEvent.h>
-#include <mc/client/renderer/screen/MinecraftUIRenderContext.h>
 
 #include <functional>
+#include <memory>
 
 namespace f3_debug::events {
 

@@ -9,10 +9,10 @@
 #include "f3_debug/util/FpsCounter.h"
 #include "f3_debug/util/Uptime.h"
 
-#include <mc/client/renderer/screen/MinecraftUIRenderContext.h>
-
 #include <string>
 #include <vector>
+
+class MinecraftUIRenderContext;
 
 namespace f3_debug::overlay {
 
