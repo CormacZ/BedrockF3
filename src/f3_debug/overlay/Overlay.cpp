@@ -49,16 +49,16 @@ namespace f3_debug::overlay {
 namespace {
 
 // Per-line colors. Indexed into by a small enum below.
-constexpr std::array<float, 4> kColorHeader = {0.40f, 0.70f, 1.00f, 1.0f};
-constexpr std::array<float, 4> kColorBody = {1.00f, 1.00f, 1.00f, 1.0f};
-constexpr std::array<float, 4> kColorOk = {0.55f, 1.00f, 0.55f, 1.0f};
-constexpr std::array<float, 4> kColorWarn = {1.00f, 0.85f, 0.30f, 1.0f};
+constexpr std::array<float, 4> kColorHeader = {0.40F, 0.70F, 1.00F, 1.0F};
+constexpr std::array<float, 4> kColorBody = {1.00F, 1.00F, 1.00F, 1.0F};
+constexpr std::array<float, 4> kColorOk = {0.55F, 1.00F, 0.55F, 1.0F};
+constexpr std::array<float, 4> kColorWarn = {1.00F, 0.85F, 0.30F, 1.0F};
 // Translucent gray for the per-line background boxes. Java Edition's
 // F3 panel uses a dark-gray background that is mostly transparent:
 // about 80% transparent / 20% opaque. The user asked for that
 // exact look -- "80% transparent and 20% not transparent" -- so we
 // use 0.20 alpha (the BG is 20% opaque, 80% see-through).
-constexpr std::array<float, 4> kColorBg = {0.20f, 0.20f, 0.20f, 0.20f};
+constexpr std::array<float, 4> kColorBg = {0.20F, 0.20F, 0.20F, 0.20F};
 
 Line makeLine(std::string text, std::span<const float, 4> color) {
     return Line{.text = std::move(text), .color = {.r = color[0], .g = color[1], .b = color[2], .a = color[3]}};
@@ -124,7 +124,7 @@ PanelLines buildLines(double frameDeltaMs) {
     // FPS at high frame rates.
     const double frameMs = fpsVal > 0 ? 1000.0 / static_cast<double>(fpsVal) : 0.0;
     lines.left.push_back(makeLine("Minecraft Bedrock (BedrockF3)", kColorHeader));
-    lines.left.push_back(makeLine(std::format("FPS: {:>4}   Frame: {:.2f} ms", fpsVal, frameMs), kColorBody));
+    lines.left.push_back(makeLine(std::format("FPS: {:>4}   Frame: {:.2F} ms", fpsVal, frameMs), kColorBody));
     lines.left.push_back({}); // spacer
 
     auto& client = *ll::service::getClientInstance();
@@ -167,12 +167,12 @@ PanelLines buildLines(double frameDeltaMs) {
             F3Debug::getInstance().getSelf().getLogger().warn("biome lookup failed: {}", e.what());
         }
 
-        lines.left.push_back(makeLine(std::format("XYZ: {:.3f} / {:.3f} / {:.3f}", pos.x, pos.y, pos.z), kColorOk));
+        lines.left.push_back(makeLine(std::format("XYZ: {:.3F} / {:.3F} / {:.3F}", pos.x, pos.y, pos.z), kColorOk));
         lines.left.push_back(makeLine(std::format("Block: {} {} {}", blockX, blockY, blockZ), kColorBody));
         lines.left.push_back(
             makeLine(std::format("Chunk: {} {} [{:02d} {:02d}]", chunkX, chunkZ, inChunkX, inChunkZ), kColorBody));
         // Java format: "Facing: <cardinal> (Towards <axis>) (<yaw> / <pitch>)"
-        lines.left.push_back(makeLine(std::format("Facing: {} ({}) ({:.1f} / {:.1f})", util::cardinalDirection(rot.y),
+        lines.left.push_back(makeLine(std::format("Facing: {} ({}) ({:.1F} / {:.1F})", util::cardinalDirection(rot.y),
                                                   util::cardinalAxisName(rot.y), rot.y, rot.x),
                                       kColorBody));
         lines.left.push_back(makeLine(std::format("Biome: {}", biomeName), kColorBody));
@@ -223,7 +223,7 @@ constexpr int kPanelY = 4;
 // pad.
 constexpr int kBoxLeftPad = 2;
 constexpr int kBoxRightPad = 4;
-constexpr float kTextScale = 1.0f;
+constexpr float kTextScale = 1.0F;
 
 // Bedrock's default font (Mojangles) has a 9-pixel line height at scale 1.0.
 // Font has no public line-height accessor, so we hardcode the value. If a
@@ -389,7 +389,7 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
             RectangleArea bg{boxX0, boxY0, boxX1, boxY1,
                              /*checkForValidity=*/true};
             mce::Color bgColor{kColorBg[0], kColorBg[1], kColorBg[2], kColorBg[3]};
-            ctx.fillRectangle(bg, bgColor, 1.0f);
+            ctx.fillRectangle(bg, bgColor, 1.0F);
 
             // Draw the text inside the box. Left column is anchored
             // at the box's left + kBoxLeftPad; right column is right-
@@ -401,11 +401,11 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
                                    /*checkForValidity=*/true};
             mce::Color lineColor{l.color.r, l.color.g, l.color.b, l.color.a};
             // ui::TextAlignment has only Left, Right, Center.
-            ctx.drawText(font, lineRect, std::string{l.text}, lineColor, 1.0f,
+            ctx.drawText(font, lineRect, std::string{l.text}, lineColor, 1.0F,
                          isRight ? ui::TextAlignment::Right : ui::TextAlignment::Left,
                          // TextMeasureData / CaretMeasureData have no usable default
                          // constructor in LeviLamina 26.20.4. Use the MCAPI ctor.
-                         TextMeasureData{kTextScale, 0.0f,
+                         TextMeasureData{kTextScale, 0.0F,
                                          /*renderShadow=*/true,
                                          /*showColorSymbol=*/false,
                                          /*hideHyphen=*/false,
@@ -421,7 +421,7 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
         drawColumn(right, /*isRight=*/true);
     }
 
-    ctx.flushText(0.0f, std::nullopt);
+    ctx.flushText(0.0F, std::nullopt);
 }
 
 } // namespace f3_debug::overlay
