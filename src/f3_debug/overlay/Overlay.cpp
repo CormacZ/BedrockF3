@@ -104,7 +104,7 @@ struct PanelLines {
 };
 
 PanelLines buildLines(double frameDeltaMs) {
-    std::vector<Line> lines;
+    PanelLines lines;
 
     auto& fps = frameState();
     // Tick the FPS counter with the actual frame delta. On the very
@@ -254,14 +254,16 @@ std::vector<Line> buildRightLines() {
     int screenH = 0;
     try {
         auto& client   = *ll::service::getClientInstance();
-        auto& guiData  = client.getGuiData();
-        const auto& ss = guiData.getScreenSizeData().totalScreenSize.get();
+        auto  guiData  = client.getGuiData();
+        const auto& ss = guiData->getScreenSizeData().totalScreenSize.get();
         screenW       = static_cast<int>(ss.x);
         screenH       = static_cast<int>(ss.y);
-    } catch (...) {
+    } catch (std::exception const& e) {
         // ClientInstance / GuiData can be null during early boot or
-        // shutdown. Fall through with screenW=0 so we render a
-        // placeholder rather than crashing.
+        // shutdown. Log the message so it's not completely hidden,
+        // then fall through with screenW=0 so we render a placeholder.
+        F3Debug::getInstance().getSelf().getLogger().warn(
+            "right-column screen-size lookup failed: {}", e.what());
     }
     if (screenW > 0 && screenH > 0) {
         lines.push_back(makeLine(std::format("Display: {}x{}", screenW, screenH), kColorBody));
@@ -296,11 +298,12 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
     int screenW = 0;
     try {
         auto& client   = *ll::service::getClientInstance();
-        auto& guiData  = client.getGuiData();
-        const auto& ss = guiData.getScreenSizeData().totalScreenSize.get();
+        auto  guiData  = client.getGuiData();
+        const auto& ss = guiData->getScreenSizeData().totalScreenSize.get();
         screenW       = static_cast<int>(ss.x);
-    } catch (...) {
-        // Ignore -- right column will be skipped.
+    } catch (std::exception const& e) {
+        F3Debug::getInstance().getSelf().getLogger().warn(
+            "draw() screen-size lookup failed: {}", e.what());
     }
 
     // Java Edition F3 style: one small translucent gray box per
