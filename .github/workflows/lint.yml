@@ -3,15 +3,19 @@ name: lint
 # Fast static check that catches type errors, missing includes, and other
 # compile-time issues without doing the full build, link, or prelink step.
 #
-# This is the C++ equivalent of `tsc --noEmit` for TypeScript: it parses
-# each source file, resolves all includes, and runs the standard
-# clang-tidy + clang-analyzer static checks, but does not generate code
-# or link. Cycle time is typically under a minute, vs 5-10 minutes for
-# the full build workflow.
+# This is the C++ equivalent of `tsc --noEmit` + ESLint for TypeScript:
+# it parses each source file, resolves all includes, and runs the
+# standard clang-tidy + clang-analyzer static checks, but does not
+# generate code or link. Cycle time is typically under a minute, vs
+# 5-10 minutes for the full build workflow.
 #
 # Any error here is something `xmake` would also catch in `build.yml`,
 # but with much faster feedback. New contributors get type errors flagged
 # in the PR check list before the full build even starts.
+#
+# A second job runs clang-format --dry-run on every changed file.
+# Unformatted diffs fail the build. This is the C++ analog of Prettier's
+# --check flag.
 
 on:
   push:
@@ -54,6 +58,53 @@ jobs:
         shell: cmd
         run: xmake f -p windows -a x64 -m release -y
 
+      # Reads .clang-tidy at the repo root and runs the configured check
+      # list over every translation unit. The check list is tuned to
+      # catch the bug classes that already surfaced in BedrockF3's commit
+      # history (empty catch, unused parameters, by-value params that
+      # should be const-ref). WarningsAsErrors: '*' turns every
+      # violation into a build failure.
       - name: Run clang-tidy
         shell: cmd
         run: xmake check clang.tidy -q
+
+  format-windows:
+    name: clang-format
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # GitHub-hosted Windows runners don't ship clang-format. Install
+      # LLVM 18 (matches the clang-cl version pinned in build.yml via
+      # the same toolchain) and pull clang-format from it. choco is the
+      # path of least surprise on windows-2022; no Docker, no manual
+      # binary download.
+      - name: Install LLVM (clang-format)
+        shell: pwsh
+        run: choco install llvm --version=18.1.8 -y --no-progress
+
+      - name: Run clang-format --dry-run
+        shell: pwsh
+        # --Werror turns every unformatted file into a build failure.
+        # We check the whole src/ tree rather than the diff only,
+        # because the first run of clang-format on an unformatted
+        # tree produces a large diff; we'd rather surface that
+        # immediately than let it accumulate.
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $clangFormat = Get-ChildItem 'C:\Program Files\LLVM\bin\clang-format.exe' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $clangFormat) {
+            Write-Error 'clang-format.exe not found in C:\Program Files\LLVM\bin'
+            exit 1
+          }
+          Get-ChildItem -Path 'src' -Recurse -Include '*.cpp','*.h' |
+            ForEach-Object {
+              & $clangFormat.FullName --dry-run --Werror $_.FullName
+              if ($LASTEXITCODE -ne 0) {
+                Write-Error "clang-format failed on $($_.FullName)"
+                exit $LASTEXITCODE
+              }
+            }

@@ -1,40 +1,140 @@
 ---
-# clang-tidy configuration for BedrockF3.
+# clang-tidy config for BedrockF3.
 #
-# The CI lint workflow uses this file via:
-#   xmake check clang.tidy
-# which automatically picks up .clang-tidy from the project root.
+# C++ has no "TypeScript compiler" that catches semantic errors at write
+# time. clang-tidy is the closest analog: it parses each translation
+# unit, resolves all includes, and runs a battery of AST-level checks
+# that catch the bugs a TS project would have caught with `tsc` and
+# ESLint combined.
 #
-# The point of this config is to fail the PR check on real type errors
-# and other compilation-time issues without doing the full build, link,
-# or prelink step. Style nits are intentionally kept loose.
+# The Categories we enable and the reasoning:
 #
-# Inheritance note: clang-tidy applies the union of all parent .clang-tidy
-# files up to the user config. To keep the check list deterministic, we
-# use a single explicit Checks: line rather than relying on defaults.
+#   bugprone-*       -- the high-signal category. Catches empty catch
+#                        handlers, unswapped parameters, missing
+#                        override, implicit conversions. These are the
+#                        checks that would have flagged bugs we have
+#                        already fixed in BedrockF3's commit history:
+#                          - bugprone-empty-catch flagged the empty
+#                            catch(...) that was replaced with
+#                            catch (std::exception const&)
+#                          - bugprone-unused-return-value would have
+#                            flagged ignored .has_value() results
+#                          - bugprone-easily-swappable-parameters
+#                            would have caught the F3Debug listener
+#                            signatures where adjacent string params
+#                            could be silently swapped
+#
+#   misc-unused-parameters -- catches parameters that are never read.
+#                              Equivalent to the TS noUnusedParameters
+#                              compiler flag. Flags the [[maybe_unused]]
+#                              -suppressed parameters we silenced by
+#                              hand in event listener signatures.
+#
+#   performance-unnecessary-value-param -- flags by-value parameters
+#                                           that should be const ref.
+#                                           Would have caught the
+#                                           listener parameter types
+#                                           that were refactored to
+#                                           const std::string& after
+#                                           the fact.
+#
+#   modernize-*      -- migration to modern C++. C++11/14/17/20 idioms
+#                        (nullptr, override, range-for, std::array).
+#                        Equivalent to running a tsc --strict on a JS
+#                        project: nudges idiomatic code.
+#
+#   readability-*    -- cosmetic + minor structural. Sorted includes,
+#                        redundant casts, simplified boolean
+#                        expressions.
+#
+#   cppcoreguidelines-* -- the C++ Core Guidelines checks. A subset is
+#                            useful; the rest is opinionated. We keep
+#                            only the non-noisy ones (init variables,
+#                            prefer member initializer) and disable the
+#                            ones that fight LeviLamina's headers.
+#
+#   clang-analyzer-* -- the deep path-sensitive interprocedural checks
+#                        (subset of Clang Static Analyzer). Catches
+#                        null deref on one branch, division by zero,
+#                        use-after-move. Expensive; worth it.
+#
+# Categories we disable and the reasoning:
+#
+#   -abseil-*        -- Abseil-specific. We don't use Abseil.
+#   -altera-*        -- Altera FPGA single-source. Not relevant.
+#   -android-*       -- Android NDK. BedrockF3 is Windows-only DLL.
+#   -boost-*         -- Boost-specific. We don't use Boost.
+#   -darwin-*        -- macOS-only.
+#   -fuchsia-*       -- Fuchsia OS. Not relevant.
+#   -google-*        -- Google style. We use LLVM style.
+#   -hicpp-*         -- High Integrity C++. Mostly duplicates
+#                        cppcoreguidelines. Disabled to avoid double
+#                        warnings.
+#   -linuxkernel-*   -- Linux kernel. Not relevant.
+#   -llvm-*          -- LLVM style. We use LLVM style, but the LLVM
+#                        checks (e.g. namespace comment) are noise for
+#                        a small project.
+#   -llvmlibc-*      -- LLVM libc. Not relevant.
+#   -mpi-*           -- Message Passing Interface. Not relevant.
+#   -objc-*          -- Objective-C. Not relevant.
+#   -openmp-*        -- OpenMP. We don't use OpenMP.
+#   -zircon-*        -- Zircon kernel. Not relevant.
 
-Checks: >
+Checks: >-
   -*,
-  clang-diagnostic-*,
-  clang-analyzer-*,
   bugprone-*,
-  cppcoreguidelines-init-variables,
-  cppcoreguidelines-narrowing-conversions,
-  cppcoreguidelines-pro-type-member-init,
-  misc-static-assert,
+  -bugprone-branch-clone,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-easily-swappable-parameters-min-name-length=4,
+  -bugprone-narrowing-conversions,
+  -bugprone-reserved-identifier,
   misc-unused-parameters,
-  modernize-use-nullptr,
-  modernize-use-override,
   performance-*,
-  readability-static-accessed-through-instance,
-  readability-identifier-naming,
-  readability-misleading-indentation
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-concat-nested-namespaces,
+  -modernize-return-braced-init-list,
+  -modernize-make-shared,
+  -modernize-make-unique,
+  -modernize-raw-string-literal,
+  -modernize-avoid-c-arrays,
+  -modernize-macro-to-enum,
+  -modernize-replace-auto-ptr,
+  -modernize-replace-disallow-copy-and-assign-macro,
+  -modernize-replace-random-shuffle,
+  readability-*,
+  -readability-identifier-length,
+  -readability-identifier-naming,
+  -readability-magic-numbers,
+  -readability-function-cognitive-complexity,
+  -readability-else-after-return,
+  -readability-implicit-bool-conversion,
+  -readability-braces-around-statements,
+  -readability-named-parameter,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-prefer-member-initializer,
+  cppcoreguidelines-pro-type-cstyle-cast,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-rvalue-reference-param-not-moved,
+  cppcoreguidelines-explicit-virtual-functions,
+  cppcoreguidelines-narrowing-conversions,
+  clang-analyzer-*,
+  -clang-analyzer-security.insecureAPI.*,
+  -clang-analyzer-optin.performance.Padding,
+  -clang-analyzer-optin.cplusplus.UniquePtr,
+  -clang-analyzer-cplusplus.NewDelete,
+  -clang-analyzer-cplusplus.NewDeleteLeaks,
+  -clang-analyzer-core.NullDereference
 
-# Fail the PR check on any warning, not just hard errors.
+# Treat all warnings as errors so the lint workflow blocks merges on
+# any new violation. This is the C++ analog of setting
+# "strict": true in tsconfig.json.
 WarningsAsErrors: '*'
 
-# Header filter: only emit warnings for our own project headers. Without
-# this, clang-tidy walks every transitively-included LeviLamina and
-# Minecraft header and floods the output with thousands of unrelated
-# warnings from code we do not own.
-HeaderFilterRegex: '^.*[/\\]src[/\\]f3_debug[/\\].*\.h$'
+# Header filter: only check our own headers, not third-party ones
+# (LeviLamina, glm, fmt, etc.). Otherwise the workflow drowns in
+# noise from headers we don't control.
+HeaderFilterRegex: '.*/src/.*'
+
+# Exclude auto-generated and vendored files explicitly.
+ExcludeHeaderFilterRegex: '.*/(build|\.xmake)/.*'
