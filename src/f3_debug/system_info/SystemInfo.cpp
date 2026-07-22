@@ -4,6 +4,7 @@
 
 #include <Windows.h>
 #include <dxgi1_4.h>
+#include <psapi.h>
 
 #include <cstring>
 #include <string>
@@ -31,9 +32,13 @@ std::string wideToUtf8(wchar_t const* wstr) {
 }
 
 // Convert bytes to a human-readable MB count, rounded down.
-// e.g. 902283468 -> 860
+// e.g. 902283468 -> 860. Computes the divisor in int64_t
+// explicitly so the bugprone-implicit-widening-of-multiplication
+// clang-tidy check does not fire (the literal 1024 is int by
+// default, so 1024 * 1024 is int, which would silently truncate
+// on values above 2 GiB before the division even happens).
 constexpr std::int64_t bytesToMB(std::int64_t bytes) noexcept {
-    return bytes / (1024 * 1024);
+    return bytes / (std::int64_t{1024} * 1024);
 }
 
 } // namespace
