@@ -44,7 +44,9 @@ constexpr std::array<float, 4> kColorHeader = {0.40f, 0.70f, 1.00f, 1.0f};
 constexpr std::array<float, 4> kColorBody   = {1.00f, 1.00f, 1.00f, 1.0f};
 constexpr std::array<float, 4> kColorOk     = {0.55f, 1.00f, 0.55f, 1.0f};
 constexpr std::array<float, 4> kColorWarn   = {1.00f, 0.85f, 0.30f, 1.0f};
-constexpr std::array<float, 4> kColorBg     = {0.00f, 0.00f, 0.00f, 0.55f};
+// Translucent gray for the per-line background boxes. Java Edition's
+// F3 panel uses a similar dark-gray, half-transparent background.
+constexpr std::array<float, 4> kColorBg     = {0.15f, 0.15f, 0.15f, 0.5f};
 
 Line makeLine(std::string text, std::span<const float, 4> color) {
     return Line{
@@ -189,10 +191,15 @@ std::vector<Line> buildLines(double frameDeltaMs) {
 }
 
 // Position the panel at the top-left of the screen.
-constexpr int kPanelX     = 4;
-constexpr int kPanelY     = 4;
-constexpr int kPadding    = 6;
-constexpr float kTextScale = 1.0f;
+constexpr int kPanelX      = 4;
+constexpr int kPanelY      = 4;
+// Per-line padding: 2px of slack between the text and the left edge
+// of its background box, 4px on the right. Matches Java Edition's
+// F3 panel where the text is nearly flush-left with a small right
+// pad.
+constexpr int kBoxLeftPad  = 2;
+constexpr int kBoxRightPad = 4;
+constexpr float kTextScale  = 1.0f;
 
 // Bedrock's default font (Mojangles) has a 9-pixel line height at scale 1.0.
 // Font has no public line-height accessor, so we hardcode the value. If a
@@ -213,50 +220,47 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
         offsetof(MinecraftUIRenderContext, mDebugTextFontHandle));
     Font& font = fontHandle.getFont();
 
-    // Measure each line so we can size the background rectangle. getLineLength
-    // returns the rendered WIDTH of a string, not its height -- we use the
-    // hardcoded kLineHeightPx for the vertical stride since Font has no
-    // public line-height accessor.
-    int maxPxW = 0;
+    const int   linePxH = static_cast<int>(static_cast<float>(kLineHeightPx) * kTextScale);
+    const float x0      = static_cast<float>(kPanelX);
+    const float y0      = static_cast<float>(kPanelY);
+
+    // Java Edition F3 style: one small translucent gray box per
+    // non-empty line, sized to that line's text width. Spacer lines
+    // (empty text) get no background, so the boxes don't bleed into
+    // the gaps between logical sections.
+    float y = y0;
     for (auto const& l : lines) {
         if (l.text.empty()) {
+            // Advance by one line height for the spacer so the next
+            // box is positioned correctly, but draw no background and
+            // no text.
+            y += static_cast<float>(linePxH);
             continue;
         }
-        maxPxW = std::max(maxPxW,
-            ctx.getLineLength(font, l.text, kTextScale, /*showColorSymbol=*/false));
-    }
-    const int linePxH = static_cast<int>(static_cast<float>(kLineHeightPx) * kTextScale);
-    const int boxW    = maxPxW + kPadding * 2;
-    const int boxH    = linePxH * static_cast<int>(lines.size()) + kPadding * 2;
-    const float x0 = static_cast<float>(kPanelX);
-    const float y0 = static_cast<float>(kPanelY);
 
-    // Background. fillRectangle is the supported way to draw a solid
-    // rectangle underneath HUD text.
-    {
-        // RectangleArea's 4-float ctor requires the bool checkForValidity
-        // 5th arg. Pass true to opt into the bounds check.
+        const int textW = ctx.getLineLength(
+            font, l.text, kTextScale, /*showColorSymbol=*/false);
+        const float boxX0 = x0;
+        const float boxY0 = y;
+        const float boxX1 = x0 + static_cast<float>(textW) + static_cast<float>(kBoxRightPad);
+        const float boxY1 = y + static_cast<float>(linePxH);
+
+        // Draw the per-line translucent background box. RectangleArea's
+        // 4-float ctor requires the bool checkForValidity 5th arg; pass
+        // true to opt into the bounds check.
         RectangleArea bg{
-            x0, y0,
-            x0 + static_cast<float>(boxW),
-            y0 + static_cast<float>(boxH),
+            boxX0, boxY0, boxX1, boxY1,
             /*checkForValidity=*/true
         };
-        mce::Color bgColor{0.0f, 0.0f, 0.0f, kColorBg[3]};
+        mce::Color bgColor{kColorBg[0], kColorBg[1], kColorBg[2], kColorBg[3]};
         ctx.fillRectangle(bg, bgColor, 1.0f);
-    }
 
-    // Each line is queued via drawText; flushText commits all queued text
-    // in a single batch.
-    float y = y0 + static_cast<float>(kPadding);
-    for (auto const& l : lines) {
-        if (l.text.empty()) {
-            continue;
-        }
+        // Draw the text inside the box, anchored at left + kBoxLeftPad
+        // so the text is nearly flush-left (matches Java's F3 panel).
         RectangleArea lineRect{
-            x0 + static_cast<float>(kPadding),
+            x0 + static_cast<float>(kBoxLeftPad),
             y,
-            x0 + static_cast<float>(kPadding) + static_cast<float>(maxPxW),
+            x0 + static_cast<float>(kBoxLeftPad) + static_cast<float>(textW),
             y + static_cast<float>(linePxH),
             /*checkForValidity=*/true
         };
