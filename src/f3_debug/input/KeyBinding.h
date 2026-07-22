@@ -17,9 +17,11 @@ class F3Debug;
 
 namespace input {
 
-// GLFW key code for F3. This matches the GDK client's underlying windowing
-// layer. (GLFW_KEY_F3 == 292)
-constexpr int kF3KeyCode = 292;
+// Bedrock key code for F3. Bedrock's input pipeline uses Windows Virtual-Key
+// codes, not GLFW key codes. VK_F3 == 0x72 == 114. (GLFW_KEY_F3 == 292 is
+// the GLFW library's F3 code and is NOT what Bedrock dispatches when you
+// press the F3 key on a real keyboard.)
+constexpr int kF3KeyCode = 114;
 
 constexpr const char* kToggleKeyName = "bedrockf3.toggle";
 
