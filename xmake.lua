@@ -67,7 +67,7 @@ target("BedrockF3")
     -- is happy. Only needed on Windows (the only platform we build
     -- for).
     if is_plat("windows") then
-        add_links("dxgi", "dxguid", "psapi")
+        add_links("advapi32", "dxgi", "dxguid", "psapi", "user32")
     end
 
     before_link(function(target)
@@ -169,7 +169,7 @@ target("BedrockF3-asan")
     set_optimize("aggressive")
     add_files("src/**.cpp")
     add_includedirs("src")
-    add_links("dxgi", "dxguid", "psapi")
+    add_links("advapi32", "dxgi", "dxguid", "psapi", "user32")
     before_link(function(target)
         import("lib.detect.find_file")
         import("core.project.config")
