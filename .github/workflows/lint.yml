@@ -76,14 +76,23 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      # GitHub-hosted Windows runners don't ship clang-format. Install
-      # LLVM 18 (matches the clang-cl version pinned in build.yml via
-      # the same toolchain) and pull clang-format from it. choco is the
-      # path of least surprise on windows-2022; no Docker, no manual
-      # binary download.
-      - name: Install LLVM (clang-format)
+      # windows-2022 ships with LLVM 20.1.8 pre-installed (in
+      # C:\Program Files\LLVM\bin). No install step needed; we
+      # just locate the binary. Pinned-version installs via
+      # choco fail because the runner image already has a
+      # newer version, and choco refuses to downgrade.
+      - name: Locate clang-format
         shell: pwsh
-        run: choco install llvm --version=18.1.8 -y --no-progress
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $clangFormat = Get-ChildItem 'C:\Program Files\LLVM\bin\clang-format.exe' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $clangFormat) {
+            Write-Error 'clang-format.exe not found in C:\Program Files\LLVM\bin'
+            exit 1
+          }
+          $clangFormat.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & $clangFormat.FullName --version
 
       - name: Run clang-format --dry-run
         shell: pwsh

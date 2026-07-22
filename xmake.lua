@@ -109,7 +109,6 @@ target("BedrockF3")
             }
         )
     end)
-end
 
 -- =============================================================================
 -- Sanitizer build (ASan + UBSan)
@@ -199,5 +198,4 @@ target("BedrockF3-asan")
         os.vcp(target:targetfile(),  format("%s/", output_dir))
         os.vcp(target:symbolfile(),  format("%s/", output_dir))
     end)
-end
 end
