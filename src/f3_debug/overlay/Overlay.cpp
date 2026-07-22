@@ -308,13 +308,17 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
             + offsetof(mce::ViewportInfo, size));
         screenW = static_cast<int>(size.x);
         screenH = static_cast<int>(size.y);
-    } catch (...) {
-        // Fall through to the Windows API fallback below.
+    } catch (std::exception const& e) {
+        // The dAccess can throw if the render context's storage
+        // chain is in an unexpected state. Log and fall through
+        // to the Windows API fallback.
+        F3Debug::getInstance().getSelf().getLogger().warn(
+            "screen-size dAccess failed: {}", e.what());
     }
     if (screenW <= 0 || screenH <= 0) {
-        // Windows API fallback. <Windows.h> is transitively included
-        // by Bedrock headers in the build, so we don't need to
-        // include it explicitly here.
+        // Windows API fallback for a fullscreen game. GetSystemMetrics
+        // returns the monitor size in physical pixels, which is the
+        // same as the render size in a fullscreen Bedrock client.
         screenW = GetSystemMetrics(SM_CXSCREEN);
         screenH = GetSystemMetrics(SM_CYSCREEN);
     }
