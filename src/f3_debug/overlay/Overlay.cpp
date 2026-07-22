@@ -23,6 +23,8 @@
 #include <mc/deps/input/RectangleArea.h>
 #include <mc/client/gui/CaretMeasureData.h>
 #include <mc/client/gui/TextMeasureData.h>
+#include <mc/client/gui/screens/ScreenContext.h>
+#include <mc/deps/renderer/ViewportInfo.h>
 #include <mc/world/level/biome/Biome.h>
 #include <mc/world/level/BlockPos.h>
 #include <mc/world/level/BlockSource.h>
@@ -247,21 +249,18 @@ std::vector<Line> buildRightLines(int screenW, int screenH) {
     const auto versionStr = ver.to_string();
     lines.push_back(makeLine(std::format("Minecraft {}", versionStr), kColorBody));
 
-    // Display resolution. The totalScreenSize is the full window size
-    // reported by the platform layer (in pixels at the current
-    // monitor's scale). For a 1080p monitor at 100% scale, this is
-    // 1920x1080. For a 4K monitor at 200% scale, Bedrock reports
-    // 3840x2160 (the OS handles the DPI scaling for the render
-    // target, so the number you see here matches the panel you see).
-    //
-    // We pass the screen size in via an output parameter from the
-    // caller (draw()) rather than querying it here. buildRightLines
-    // is called from draw(), which has direct access to the render
-    // context's mArea rectangle -- that is the authoritative screen
-    // size for this draw pass. Reading it from ClientInstance
-    // indirectly via getGuiData()->getScreenSizeData() was unreliable
-    // in practice (returned 0 in the user's testing, even after
-    // ClientInstance was fully initialized).
+    // Display resolution. screenW and screenH are passed in by the
+    // caller (draw()), which read them from the render context's
+    // viewport. For a 1080p monitor at 100% scale this is 1920x1080.
+    // For a 4K monitor at 200% scale Bedrock reports 3840x2160
+    // (the OS handles the DPI scaling for the render target, so
+    // the number you see here matches the panel you see).
+    if (screenW > 0 && screenH > 0) {
+        lines.push_back(makeLine(std::format("Display: {}x{}", screenW, screenH), kColorBody));
+    } else {
+        lines.push_back(makeLine("Display: unknown", kColorBody));
+    }
+
     return lines;
 }
 
@@ -282,19 +281,23 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
     const float x0      = static_cast<float>(kPanelX);
     const float y0      = static_cast<float>(kPanelY);
 
-    // Screen size. We read it from the render context's own mArea
-    // field rather than going through ClientInstance->getGuiData()->
-    // getScreenSizeData().totalScreenSize. The previous chain was
-    // returning 0 in practice even after the game was fully
-    // initialized, which caused the right column to be silently
-    // skipped. mArea is the rectangle the render pass is drawing
-    // into -- it is always valid (we would not be here otherwise)
-    // and it is the authoritative screen size for this draw call.
-    const auto& screenRect = ll::memory::dAccess<RectangleArea>(
-        &ctx,
-        offsetof(MinecraftUIRenderContext, mArea));
-    const int screenW = static_cast<int>(screenRect.x1 - screenRect.x0);
-    const int screenH = static_cast<int>(screenRect.y1 - screenRect.y0);
+    // Screen size. We read it from the render context's
+    // mScreenContext->viewport->size, which is the authoritative
+    // viewport size for this draw pass. The previous attempts to
+    // read screen size were wrong:
+    //   * getGuiData()->getScreenSizeData().totalScreenSize was
+    //     returning Vec2(0,0) on the user's machine even after
+    //     the game was fully initialized.
+    //   * MinecraftUIRenderContext::mArea is on the inner TextItem
+    //     struct, not the render context itself -- so an
+    //     offsetof on the context was reading into the wrong
+    //     field and produced garbage.
+    const auto& screenContext = ll::memory::dAccess<ScreenContext>(
+        &ctx, offsetof(MinecraftUIRenderContext, mScreenContext));
+    const auto& viewport = screenContext.viewport.get();
+    const auto& size     = viewport.size.get();
+    const int   screenW  = static_cast<int>(size.x);
+    const int   screenH  = static_cast<int>(size.y);
 
     const auto right = buildRightLines(screenW, screenH);
 
