@@ -48,9 +48,12 @@ constexpr std::array<float, 4> kColorBody   = {1.00f, 1.00f, 1.00f, 1.0f};
 constexpr std::array<float, 4> kColorOk     = {0.55f, 1.00f, 0.55f, 1.0f};
 constexpr std::array<float, 4> kColorWarn   = {1.00f, 0.85f, 0.30f, 1.0f};
 // Translucent gray for the per-line background boxes. Java Edition's
-// F3 panel uses a similar dark-gray, very-transparent background
-// (we go 20% alpha to match the subtle, ghostly look).
-constexpr std::array<float, 4> kColorBg     = {0.15f, 0.15f, 0.15f, 0.2f};
+// F3 panel uses a very-transparent dark-gray background. We go 10%
+// alpha so the boxes are ghostly -- enough to give each line a
+// faint backdrop for readability against busy textures, not so much
+// that they cover the world. Java's alpha is hard to measure from
+// a screenshot but appears to be in the 10-15% range.
+constexpr std::array<float, 4> kColorBg     = {0.20f, 0.20f, 0.20f, 0.10f};
 
 Line makeLine(std::string text, std::span<const float, 4> color) {
     return Line{
@@ -233,7 +236,7 @@ constexpr int kLineHeightPx = 9;
 // are deliberately deferred to a follow-up -- they need Windows API
 // (DXGI for GPU, __cpuid for CPU brand, GetSystemMetrics for the
 // display device name) which is a chunkier change.
-std::vector<Line> buildRightLines() {
+std::vector<Line> buildRightLines(int screenW, int screenH) {
     std::vector<Line> lines;
 
     // Game version. ll::getGameVersion() returns a data::Version parsed
@@ -250,33 +253,20 @@ std::vector<Line> buildRightLines() {
     // 1920x1080. For a 4K monitor at 200% scale, Bedrock reports
     // 3840x2160 (the OS handles the DPI scaling for the render
     // target, so the number you see here matches the panel you see).
-    int screenW = 0;
-    int screenH = 0;
-    try {
-        auto& client   = *ll::service::getClientInstance();
-        auto  guiData  = client.getGuiData();
-        const auto& ss = guiData->getScreenSizeData().totalScreenSize.get();
-        screenW       = static_cast<int>(ss.x);
-        screenH       = static_cast<int>(ss.y);
-    } catch (std::exception const& e) {
-        // ClientInstance / GuiData can be null during early boot or
-        // shutdown. Log the message so it's not completely hidden,
-        // then fall through with screenW=0 so we render a placeholder.
-        F3Debug::getInstance().getSelf().getLogger().warn(
-            "right-column screen-size lookup failed: {}", e.what());
-    }
-    if (screenW > 0 && screenH > 0) {
-        lines.push_back(makeLine(std::format("Display: {}x{}", screenW, screenH), kColorBody));
-    } else {
-        lines.push_back(makeLine("Display: unknown", kColorBody));
-    }
-
+    //
+    // We pass the screen size in via an output parameter from the
+    // caller (draw()) rather than querying it here. buildRightLines
+    // is called from draw(), which has direct access to the render
+    // context's mArea rectangle -- that is the authoritative screen
+    // size for this draw pass. Reading it from ClientInstance
+    // indirectly via getGuiData()->getScreenSizeData() was unreliable
+    // in practice (returned 0 in the user's testing, even after
+    // ClientInstance was fully initialized).
     return lines;
 }
 
 void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
     const auto panel = buildLines(deltaMs);
-    const auto right = buildRightLines();
 
     // The Font used for in-game debug strings. MinecraftUIRenderContext
     // keeps the debug FontHandle in a private member (`mDebugTextFontHandle`).
@@ -292,19 +282,21 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
     const float x0      = static_cast<float>(kPanelX);
     const float y0      = static_cast<float>(kPanelY);
 
-    // Screen width for right-column anchoring. If the screen size
-    // isn't available (very early/late frame) we still want to draw
-    // the left column; the right column will just be skipped.
-    int screenW = 0;
-    try {
-        auto& client   = *ll::service::getClientInstance();
-        auto  guiData  = client.getGuiData();
-        const auto& ss = guiData->getScreenSizeData().totalScreenSize.get();
-        screenW       = static_cast<int>(ss.x);
-    } catch (std::exception const& e) {
-        F3Debug::getInstance().getSelf().getLogger().warn(
-            "draw() screen-size lookup failed: {}", e.what());
-    }
+    // Screen size. We read it from the render context's own mArea
+    // field rather than going through ClientInstance->getGuiData()->
+    // getScreenSizeData().totalScreenSize. The previous chain was
+    // returning 0 in practice even after the game was fully
+    // initialized, which caused the right column to be silently
+    // skipped. mArea is the rectangle the render pass is drawing
+    // into -- it is always valid (we would not be here otherwise)
+    // and it is the authoritative screen size for this draw call.
+    const auto& screenRect = ll::memory::dAccess<RectangleArea>(
+        &ctx,
+        offsetof(MinecraftUIRenderContext, mArea));
+    const int screenW = static_cast<int>(screenRect.x1 - screenRect.x0);
+    const int screenH = static_cast<int>(screenRect.y1 - screenRect.y0);
+
+    const auto right = buildRightLines(screenW, screenH);
 
     // Java Edition F3 style: one small translucent gray box per
     // non-empty line, sized to that line's text width. Spacer lines
