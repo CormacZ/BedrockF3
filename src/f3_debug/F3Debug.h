@@ -28,7 +28,7 @@ public:
     bool load();
     bool enable();
     bool disable();
-    bool unload();
+    bool unload() const;
 
     // Toggle the overlay at runtime. Called from the F3 key handler.
     void toggleOverlay() noexcept { mOverlayVisible = !mOverlayVisible; }

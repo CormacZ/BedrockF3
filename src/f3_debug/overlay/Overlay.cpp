@@ -61,7 +61,7 @@ constexpr std::array<float, 4> kColorWarn = {1.00f, 0.85f, 0.30f, 1.0f};
 constexpr std::array<float, 4> kColorBg = {0.20f, 0.20f, 0.20f, 0.20f};
 
 Line makeLine(std::string text, std::span<const float, 4> color) {
-    return Line{std::move(text), {color[0], color[1], color[2], color[3]}};
+    return Line{.text = std::move(text), .color = {.r = color[0], .g = color[1], .b = color[2], .a = color[3]}};
 }
 
 // Frame-local state. A function-local static lives for the process
@@ -154,7 +154,7 @@ PanelLines buildLines(double frameDeltaMs) {
         try {
             auto& blockSource = player->getDimensionBlockSource();
             BlockPos bp(pos.x, pos.y, pos.z);
-            if (auto* biome = blockSource.tryGetBiome(bp); biome != nullptr) {
+            if (const auto* biome = blockSource.tryGetBiome(bp); biome != nullptr) {
                 // mHash is wrapped in ll::TypedStorage, so we need to
                 // apply operator-> to get the underlying HashedString,
                 // then call getString() on that.
@@ -290,8 +290,8 @@ std::vector<Line> buildRightLines(int screenW, int screenH) {
         if (total > 0) {
             const auto used = total - avail;
             const int percent = static_cast<int>(100 * used / total);
-            const auto usedMB = used / (1024 * 1024);
-            const auto totalMB = total / (1024 * 1024);
+            const auto usedMB = used / (1024LL * 1024);
+            const auto totalMB = total / (1024LL * 1024);
             lines.push_back(makeLine(std::format("Mem: {}% {}/{}MB", percent, usedMB, totalMB), kColorBody));
         } else {
             lines.push_back(makeLine("Mem: unknown", kColorBody));
@@ -315,8 +315,8 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
     Font& font = fontHandle.getFont();
 
     const int linePxH = static_cast<int>(static_cast<float>(kLineHeightPx) * kTextScale);
-    const float x0 = static_cast<float>(kPanelX);
-    const float y0 = static_cast<float>(kPanelY);
+    const auto x0 = kPanelX;
+    const auto y0 = kPanelY;
 
     // Screen size. We chain through the storage offsets directly
     // to read mce::ViewportInfo::size as a glm::vec2. The previous

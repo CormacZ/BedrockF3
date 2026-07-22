@@ -63,7 +63,7 @@ bool F3Debug::disable() {
     return true;
 }
 
-bool F3Debug::unload() {
+bool F3Debug::unload() const {
     auto& logger = getSelf().getLogger();
     logger.info("BedrockF3 unloading");
     return true;
