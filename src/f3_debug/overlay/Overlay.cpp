@@ -45,8 +45,9 @@ constexpr std::array<float, 4> kColorBody   = {1.00f, 1.00f, 1.00f, 1.0f};
 constexpr std::array<float, 4> kColorOk     = {0.55f, 1.00f, 0.55f, 1.0f};
 constexpr std::array<float, 4> kColorWarn   = {1.00f, 0.85f, 0.30f, 1.0f};
 // Translucent gray for the per-line background boxes. Java Edition's
-// F3 panel uses a similar dark-gray, half-transparent background.
-constexpr std::array<float, 4> kColorBg     = {0.15f, 0.15f, 0.15f, 0.5f};
+// F3 panel uses a similar dark-gray, very-transparent background
+// (we go 20% alpha to match the subtle, ghostly look).
+constexpr std::array<float, 4> kColorBg     = {0.15f, 0.15f, 0.15f, 0.2f};
 
 Line makeLine(std::string text, std::span<const float, 4> color) {
     return Line{
