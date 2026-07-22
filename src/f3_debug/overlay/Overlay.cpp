@@ -292,10 +292,15 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
     //     struct, not the render context itself -- so an
     //     offsetof on the context was reading into the wrong
     //     field and produced garbage.
+    //   * Calling .get() on the TypedStorage for a reference type
+    //     (mce::ViewportInfo const&) tripped up the type
+    //     deduction and the compiler ended up trying to call .get()
+    //     on the wrong thing. Use operator-> instead -- it
+    //     cleanly returns a T* which dereferences to the actual
+    //     struct, and we can then chain through .size directly.
     const auto& screenContext = ll::memory::dAccess<ScreenContext>(
         &ctx, offsetof(MinecraftUIRenderContext, mScreenContext));
-    const auto& viewport = screenContext.viewport.get();
-    const auto& size     = viewport.size.get();
+    const auto& size     = screenContext.viewport->size.get();
     const int   screenW  = static_cast<int>(size.x);
     const int   screenH  = static_cast<int>(size.y);
 
