@@ -31,6 +31,8 @@
 #include <mc/world/level/BlockSource.h>
 #include <mc/world/level/dimension/Dimension.h>
 
+#include <Windows.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
