@@ -19,6 +19,9 @@
 #include <mc/deps/input/RectangleArea.h>
 #include <mc/client/gui/CaretMeasureData.h>
 #include <mc/client/gui/TextMeasureData.h>
+#include <mc/world/level/biome/Biome.h>
+#include <mc/world/level/BlockPos.h>
+#include <mc/world/level/BlockSource.h>
 #include <mc/world/level/dimension/Dimension.h>
 
 #include <algorithm>
@@ -65,6 +68,21 @@ util::Uptime& sessionState() {
 // Build the F3 lines. The FPS counter is ticked with the delta passed
 // in from the render listener so the value we render is the same
 // sample we just recorded.
+//
+// Layout (Java Edition F3 style, with a few Bedrock-specific extras):
+//
+//   Minecraft Bedrock (BedrockF3)
+//   FPS:  216   Frame: 4.41 ms
+//
+//   XYZ: 511.052 / 11.620 / 510.411
+//   Block: 511 11 510
+//   Chunk: 31 31 [15 02]
+//   Facing: south (Towards positive Z) (0.5 / -1.4)
+//   Biome: plains
+//   Section-relative: 15 11 02
+//
+//   Dimension: Overworld
+//   Uptime: 00:03:03
 std::vector<Line> buildLines(double frameDeltaMs) {
     std::vector<Line> lines;
 
@@ -83,25 +101,60 @@ std::vector<Line> buildLines(double frameDeltaMs) {
     lines.push_back(makeLine("Minecraft Bedrock (BedrockF3)", kColorHeader));
     lines.push_back(makeLine(std::format("FPS: {:>4}   Frame: {:.2f} ms",
         fpsVal, frameMs), kColorBody));
-    lines.push_back(makeLine(std::format("Uptime: {}", sessionState().format()), kColorBody));
     lines.push_back({}); // spacer
 
     auto& client = *ll::service::getClientInstance();
     LocalPlayer* player = client.getLocalPlayer();
     if (player != nullptr) {
         const Vec3 pos = player->getPosition();
-        const int chunkX = static_cast<int>(std::floor(pos.x)) >> 4;
-        const int chunkZ = static_cast<int>(std::floor(pos.z)) >> 4;
+        const Vec2 rot = player->getRotation();
+
+        const int   blockX = static_cast<int>(std::floor(pos.x));
+        const int   blockY = static_cast<int>(std::floor(pos.y));
+        const int   blockZ = static_cast<int>(std::floor(pos.z));
+        const int   chunkX = blockX >> 4;
+        const int   chunkZ = blockZ >> 4;
+        // Section-relative position is the offset within the 16x16x16
+        // sub-chunk. C++ % on a negative integer can return a negative
+        // result, so we normalize to [0, 16) explicitly.
+        const int   inChunkX   = ((blockX & 15) + 16) % 16;
+        const int   inChunkZ   = ((blockZ & 15) + 16) % 16;
+        const int   inSectionX = inChunkX;
+        const int   inSectionY = ((blockY & 15) + 16) % 16;
+        const int   inSectionZ = inChunkZ;
+
+        // Look up the biome at the player's block position. tryGetBiome
+        // returns nullptr if the chunk is not loaded; fall back to
+        // "unknown" in that case rather than crashing.
+        std::string biomeName = "unknown";
+        try {
+            auto& blockSource = player->getDimensionBlockSource();
+            BlockPos bp(pos.x, pos.y, pos.z);
+            if (auto* biome = blockSource.tryGetBiome(bp); biome != nullptr) {
+                biomeName = biome->mHash.getString();
+            }
+        } catch (...) {
+            // Some dimensions (e.g. older custom ones) can throw on
+            // biome access. Swallow and keep the fallback.
+        }
+
         lines.push_back(makeLine(std::format("XYZ: {:.3f} / {:.3f} / {:.3f}",
             pos.x, pos.y, pos.z), kColorOk));
-        lines.push_back(makeLine(std::format("Chunk: {} / {}  (in chunk: {:.2f}, {:.2f})",
-            chunkX, chunkZ, pos.x - chunkX * 16.0, pos.z - chunkZ * 16.0), kColorBody));
-
-        const Vec2 rot = player->getRotation();
-        lines.push_back(makeLine(std::format("Facing: {} ({:.1f} deg)",
-            util::cardinalDirection(rot.y), rot.y), kColorBody));
-        lines.push_back(makeLine(std::format("Pitch: {:.1f} deg", rot.x), kColorBody));
+        lines.push_back(makeLine(std::format("Block: {} {} {}",
+            blockX, blockY, blockZ), kColorBody));
+        lines.push_back(makeLine(std::format("Chunk: {} {} [{:02d} {:02d}]",
+            chunkX, chunkZ, inChunkX, inChunkZ), kColorBody));
+        // Java format: "Facing: <cardinal> (Towards <axis>) (<yaw> / <pitch>)"
+        lines.push_back(makeLine(std::format("Facing: {} ({}) ({:.1f} / {:.1f})",
+            util::cardinalDirection(rot.y),
+            util::cardinalAxisName(rot.y),
+            rot.y, rot.x), kColorBody));
+        lines.push_back(makeLine(std::format("Biome: {}", biomeName), kColorBody));
+        lines.push_back(makeLine(std::format("Section-relative: {:02d} {:02d} {:02d}",
+            inSectionX, inSectionY, inSectionZ), kColorBody));
     } else {
+        // The render listener already early-outs on null LocalPlayer
+        // before calling us, so this branch is defensive only.
         lines.push_back(makeLine("Player unavailable (join a world to populate)", kColorWarn));
     }
 
@@ -119,8 +172,10 @@ std::vector<Line> buildLines(double frameDeltaMs) {
         lines.push_back(makeLine(std::format("Dimension: {}", name), kColorBody));
     }
 
-    lines.push_back({}); // spacer
-    lines.push_back(makeLine("Press F3 to toggle this overlay", kColorHeader));
+    // Bedrock-specific extras at the bottom. Java doesn't have a
+    // session timer, but it's useful for tracking how long a debug
+    // session has been running.
+    lines.push_back(makeLine(std::format("Uptime: {}", sessionState().format()), kColorBody));
 
     return lines;
 }

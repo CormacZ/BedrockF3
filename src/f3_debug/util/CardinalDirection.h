@@ -33,4 +33,19 @@ namespace f3_debug::util {
     return dirs[idx];
 }
 
+// Java-style axis name for a yaw, e.g. "Towards positive Z".
+// Used to fill the parenthetical in the Facing line:
+//   Facing: south (Towards positive Z) (-17.7 / 12.5)
+[[nodiscard]] constexpr std::string_view cardinalAxisName(float yaw) noexcept {
+    constexpr std::array<std::string_view, 4> axes = {
+        "Towards positive Z",
+        "Towards negative X",
+        "Towards negative Z",
+        "Towards positive X",
+    };
+    const float normalized = std::fmod(yaw + 360.0f, 360.0f);
+    const int   idx        = static_cast<int>(std::floor((normalized + 45.0f) / 90.0f)) % 4;
+    return axes[idx];
+}
+
 } // namespace f3_debug::util
