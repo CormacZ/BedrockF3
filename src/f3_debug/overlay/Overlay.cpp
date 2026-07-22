@@ -12,25 +12,25 @@
 
 #include <mc/client/game/ClientInstance.h>
 #include <mc/client/game/IClientInstance.h>
+#include <mc/client/gui/CaretMeasureData.h>
+#include <mc/client/gui/FontHandle.h>
 #include <mc/client/gui/GuiData.h>
 #include <mc/client/gui/ScreenSizeData.h>
-#include <mc/client/renderer/screen/MinecraftUIRenderContext.h>
-#include <mc/client/gui/FontHandle.h>
 #include <mc/client/gui/TextAlignment.h>
+#include <mc/client/gui/TextMeasureData.h>
 #include <mc/client/gui/controls/UIRenderContext.h>
+#include <mc/client/gui/screens/ScreenContext.h>
 #include <mc/client/player/LocalPlayer.h>
+#include <mc/client/renderer/screen/MinecraftUIRenderContext.h>
 #include <mc/deps/core/math/Color.h>
 #include <mc/deps/core/utility/NonOwnerPointer.h>
 #include <mc/deps/input/RectangleArea.h>
-#include <mc/client/gui/CaretMeasureData.h>
-#include <mc/client/gui/TextMeasureData.h>
-#include <mc/client/gui/screens/ScreenContext.h>
 #include <mc/deps/renderer/ViewportInfo.h>
-#include <mc/world/level/biome/Biome.h>
-#include <glm/glm.hpp>
 #include <mc/world/level/BlockPos.h>
 #include <mc/world/level/BlockSource.h>
+#include <mc/world/level/biome/Biome.h>
 #include <mc/world/level/dimension/Dimension.h>
+#include <glm/glm.hpp>
 
 #include <Windows.h>
 
@@ -50,21 +50,18 @@ namespace {
 
 // Per-line colors. Indexed into by a small enum below.
 constexpr std::array<float, 4> kColorHeader = {0.40f, 0.70f, 1.00f, 1.0f};
-constexpr std::array<float, 4> kColorBody   = {1.00f, 1.00f, 1.00f, 1.0f};
-constexpr std::array<float, 4> kColorOk     = {0.55f, 1.00f, 0.55f, 1.0f};
-constexpr std::array<float, 4> kColorWarn   = {1.00f, 0.85f, 0.30f, 1.0f};
+constexpr std::array<float, 4> kColorBody = {1.00f, 1.00f, 1.00f, 1.0f};
+constexpr std::array<float, 4> kColorOk = {0.55f, 1.00f, 0.55f, 1.0f};
+constexpr std::array<float, 4> kColorWarn = {1.00f, 0.85f, 0.30f, 1.0f};
 // Translucent gray for the per-line background boxes. Java Edition's
 // F3 panel uses a dark-gray background that is mostly transparent:
 // about 80% transparent / 20% opaque. The user asked for that
 // exact look -- "80% transparent and 20% not transparent" -- so we
 // use 0.20 alpha (the BG is 20% opaque, 80% see-through).
-constexpr std::array<float, 4> kColorBg     = {0.20f, 0.20f, 0.20f, 0.20f};
+constexpr std::array<float, 4> kColorBg = {0.20f, 0.20f, 0.20f, 0.20f};
 
 Line makeLine(std::string text, std::span<const float, 4> color) {
-    return Line{
-        std::move(text),
-        {color[0], color[1], color[2], color[3]}
-    };
+    return Line{std::move(text), {color[0], color[1], color[2], color[3]}};
 }
 
 // Frame-local state. A function-local static lives for the process
@@ -119,7 +116,7 @@ PanelLines buildLines(double frameDeltaMs) {
     // first frame after enable() the listener has no previous sample
     // and passes 0.0; in that case tick() returns 0 and we just
     // display "FPS:    0   Frame: 0.00 ms" for that single frame.
-    const int   fpsVal = static_cast<int>(fps.tick(frameDeltaMs));
+    const int fpsVal = static_cast<int>(fps.tick(frameDeltaMs));
     // Compute the frame time from the smoothed FPS so the two values
     // always agree. lastDeltaMs() returns the raw delta between two
     // consecutive AfterUIRenderEvent calls, which Bedrock may fire
@@ -127,8 +124,7 @@ PanelLines buildLines(double frameDeltaMs) {
     // FPS at high frame rates.
     const double frameMs = fpsVal > 0 ? 1000.0 / static_cast<double>(fpsVal) : 0.0;
     lines.left.push_back(makeLine("Minecraft Bedrock (BedrockF3)", kColorHeader));
-    lines.left.push_back(makeLine(std::format("FPS: {:>4}   Frame: {:.2f} ms",
-        fpsVal, frameMs), kColorBody));
+    lines.left.push_back(makeLine(std::format("FPS: {:>4}   Frame: {:.2f} ms", fpsVal, frameMs), kColorBody));
     lines.left.push_back({}); // spacer
 
     auto& client = *ll::service::getClientInstance();
@@ -137,19 +133,19 @@ PanelLines buildLines(double frameDeltaMs) {
         const Vec3 pos = player->getPosition();
         const Vec2 rot = player->getRotation();
 
-        const int   blockX = static_cast<int>(std::floor(pos.x));
-        const int   blockY = static_cast<int>(std::floor(pos.y));
-        const int   blockZ = static_cast<int>(std::floor(pos.z));
-        const int   chunkX = blockX >> 4;
-        const int   chunkZ = blockZ >> 4;
+        const int blockX = static_cast<int>(std::floor(pos.x));
+        const int blockY = static_cast<int>(std::floor(pos.y));
+        const int blockZ = static_cast<int>(std::floor(pos.z));
+        const int chunkX = blockX >> 4;
+        const int chunkZ = blockZ >> 4;
         // Section-relative position is the offset within the 16x16x16
         // sub-chunk. C++ % on a negative integer can return a negative
         // result, so we normalize to [0, 16) explicitly.
-        const int   inChunkX   = ((blockX & 15) + 16) % 16;
-        const int   inChunkZ   = ((blockZ & 15) + 16) % 16;
-        const int   inSectionX = inChunkX;
-        const int   inSectionY = ((blockY & 15) + 16) % 16;
-        const int   inSectionZ = inChunkZ;
+        const int inChunkX = ((blockX & 15) + 16) % 16;
+        const int inChunkZ = ((blockZ & 15) + 16) % 16;
+        const int inSectionX = inChunkX;
+        const int inSectionY = ((blockY & 15) + 16) % 16;
+        const int inSectionZ = inChunkZ;
 
         // Look up the biome at the player's block position. tryGetBiome
         // returns nullptr if the chunk is not loaded; fall back to
@@ -168,24 +164,20 @@ PanelLines buildLines(double frameDeltaMs) {
             // Some dimensions (e.g. older custom ones) can throw on
             // biome access. Log the message so it's not completely
             // hidden, then keep the fallback name for this frame.
-            F3Debug::getInstance().getSelf().getLogger().warn(
-                "biome lookup failed: {}", e.what());
+            F3Debug::getInstance().getSelf().getLogger().warn("biome lookup failed: {}", e.what());
         }
 
-        lines.left.push_back(makeLine(std::format("XYZ: {:.3f} / {:.3f} / {:.3f}",
-            pos.x, pos.y, pos.z), kColorOk));
-        lines.left.push_back(makeLine(std::format("Block: {} {} {}",
-            blockX, blockY, blockZ), kColorBody));
-        lines.left.push_back(makeLine(std::format("Chunk: {} {} [{:02d} {:02d}]",
-            chunkX, chunkZ, inChunkX, inChunkZ), kColorBody));
+        lines.left.push_back(makeLine(std::format("XYZ: {:.3f} / {:.3f} / {:.3f}", pos.x, pos.y, pos.z), kColorOk));
+        lines.left.push_back(makeLine(std::format("Block: {} {} {}", blockX, blockY, blockZ), kColorBody));
+        lines.left.push_back(
+            makeLine(std::format("Chunk: {} {} [{:02d} {:02d}]", chunkX, chunkZ, inChunkX, inChunkZ), kColorBody));
         // Java format: "Facing: <cardinal> (Towards <axis>) (<yaw> / <pitch>)"
-        lines.left.push_back(makeLine(std::format("Facing: {} ({}) ({:.1f} / {:.1f})",
-            util::cardinalDirection(rot.y),
-            util::cardinalAxisName(rot.y),
-            rot.y, rot.x), kColorBody));
+        lines.left.push_back(makeLine(std::format("Facing: {} ({}) ({:.1f} / {:.1f})", util::cardinalDirection(rot.y),
+                                                  util::cardinalAxisName(rot.y), rot.y, rot.x),
+                                      kColorBody));
         lines.left.push_back(makeLine(std::format("Biome: {}", biomeName), kColorBody));
-        lines.left.push_back(makeLine(std::format("Section-relative: {:02d} {:02d} {:02d}",
-            inSectionX, inSectionY, inSectionZ), kColorBody));
+        lines.left.push_back(makeLine(
+            std::format("Section-relative: {:02d} {:02d} {:02d}", inSectionX, inSectionY, inSectionZ), kColorBody));
     } else {
         // The render listener already early-outs on null LocalPlayer
         // before calling us, so this branch is defensive only.
@@ -198,10 +190,18 @@ PanelLines buildLines(double frameDeltaMs) {
         const int dim = static_cast<int>(player->getDimensionId());
         std::string name = "Unknown";
         switch (dim) {
-            case 0: name = "Overworld"; break;
-            case 1: name = "Nether";    break;
-            case 2: name = "The End";   break;
-            default: name = std::format("Dimension {}", dim); break;
+        case 0:
+            name = "Overworld";
+            break;
+        case 1:
+            name = "Nether";
+            break;
+        case 2:
+            name = "The End";
+            break;
+        default:
+            name = std::format("Dimension {}", dim);
+            break;
         }
         lines.left.push_back(makeLine(std::format("Dimension: {}", name), kColorBody));
     }
@@ -215,15 +215,15 @@ PanelLines buildLines(double frameDeltaMs) {
 }
 
 // Position the panel at the top-left of the screen.
-constexpr int kPanelX      = 4;
-constexpr int kPanelY      = 4;
+constexpr int kPanelX = 4;
+constexpr int kPanelY = 4;
 // Per-line padding: 2px of slack between the text and the left edge
 // of its background box, 4px on the right. Matches Java Edition's
 // F3 panel where the text is nearly flush-left with a small right
 // pad.
-constexpr int kBoxLeftPad  = 2;
+constexpr int kBoxLeftPad = 2;
 constexpr int kBoxRightPad = 4;
-constexpr float kTextScale  = 1.0f;
+constexpr float kTextScale = 1.0f;
 
 // Bedrock's default font (Mojangles) has a 9-pixel line height at scale 1.0.
 // Font has no public line-height accessor, so we hardcode the value. If a
@@ -246,7 +246,7 @@ std::vector<Line> buildRightLines(int screenW, int screenH) {
     // from Common::getBuildInfo(), including the build/commit suffix.
     // We use the bare to_string() (e.g. "1.21.11+abc1234") and wrap it
     // in Java's "Minecraft <ver> (<ver>)" format.
-    const auto ver        = ll::getGameVersion();
+    const auto ver = ll::getGameVersion();
     const auto versionStr = ver.to_string();
     lines.push_back(makeLine(std::format("Minecraft {}", versionStr), kColorBody));
 
@@ -288,13 +288,11 @@ std::vector<Line> buildRightLines(int screenW, int screenH) {
         const auto total = system::totalMemory();
         const auto avail = system::availableMemory();
         if (total > 0) {
-            const auto used    = total - avail;
-            const int  percent = static_cast<int>(100 * used / total);
-            const auto usedMB  = used / (1024 * 1024);
+            const auto used = total - avail;
+            const int percent = static_cast<int>(100 * used / total);
+            const auto usedMB = used / (1024 * 1024);
             const auto totalMB = total / (1024 * 1024);
-            lines.push_back(makeLine(
-                std::format("Mem: {}% {}/{}MB", percent, usedMB, totalMB),
-                kColorBody));
+            lines.push_back(makeLine(std::format("Mem: {}% {}/{}MB", percent, usedMB, totalMB), kColorBody));
         } else {
             lines.push_back(makeLine("Mem: unknown", kColorBody));
         }
@@ -313,14 +311,12 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
     // There is no public getter for it, so we reach into the member via
     // offsetof. If your build of LeviLamina adds a public getter later,
     // replace this with the proper call.
-    auto& fontHandle = ll::memory::dAccess<FontHandle>(
-        &ctx,
-        offsetof(MinecraftUIRenderContext, mDebugTextFontHandle));
+    auto& fontHandle = ll::memory::dAccess<FontHandle>(&ctx, offsetof(MinecraftUIRenderContext, mDebugTextFontHandle));
     Font& font = fontHandle.getFont();
 
-    const int   linePxH = static_cast<int>(static_cast<float>(kLineHeightPx) * kTextScale);
-    const float x0      = static_cast<float>(kPanelX);
-    const float y0      = static_cast<float>(kPanelY);
+    const int linePxH = static_cast<int>(static_cast<float>(kLineHeightPx) * kTextScale);
+    const float x0 = static_cast<float>(kPanelX);
+    const float y0 = static_cast<float>(kPanelY);
 
     // Screen size. We chain through the storage offsets directly
     // to read mce::ViewportInfo::size as a glm::vec2. The previous
@@ -342,19 +338,16 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
     int screenW = 0;
     int screenH = 0;
     try {
-        const auto& size = ll::memory::dAccess<glm::vec2>(
-            &ctx,
-            offsetof(MinecraftUIRenderContext, mScreenContext)
-            + offsetof(ScreenContext, viewport)
-            + offsetof(mce::ViewportInfo, size));
+        const auto& size = ll::memory::dAccess<glm::vec2>(&ctx, offsetof(MinecraftUIRenderContext, mScreenContext) +
+                                                                    offsetof(ScreenContext, viewport) +
+                                                                    offsetof(mce::ViewportInfo, size));
         screenW = static_cast<int>(size.x);
         screenH = static_cast<int>(size.y);
     } catch (std::exception const& e) {
         // The dAccess can throw if the render context's storage
         // chain is in an unexpected state. Log and fall through
         // to the Windows API fallback.
-        F3Debug::getInstance().getSelf().getLogger().warn(
-            "screen-size dAccess failed: {}", e.what());
+        F3Debug::getInstance().getSelf().getLogger().warn("screen-size dAccess failed: {}", e.what());
     }
     if (screenW <= 0 || screenH <= 0) {
         // Windows API fallback for a fullscreen game. GetSystemMetrics
@@ -378,66 +371,47 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
                 continue;
             }
 
-            const int textW = ctx.getLineLength(
-                font, l.text, kTextScale, /*showColorSymbol=*/false);
+            const int textW = ctx.getLineLength(font, l.text, kTextScale, /*showColorSymbol=*/false);
             const float boxY0 = y;
             const float boxY1 = y + static_cast<float>(linePxH);
             // For the right column we anchor the box's RIGHT edge to
             // the screen edge (minus the right pad). For the left
             // column we anchor the box's LEFT edge to the panel x.
-            const float boxX0 = isRight
-                ? static_cast<float>(screenW) - static_cast<float>(textW) - static_cast<float>(kBoxRightPad)
-                : x0;
-            const float boxX1 = isRight
-                ? static_cast<float>(screenW)
-                : x0 + static_cast<float>(textW) + static_cast<float>(kBoxRightPad);
+            const float boxX0 =
+                isRight ? static_cast<float>(screenW) - static_cast<float>(textW) - static_cast<float>(kBoxRightPad)
+                        : x0;
+            const float boxX1 = isRight ? static_cast<float>(screenW)
+                                        : x0 + static_cast<float>(textW) + static_cast<float>(kBoxRightPad);
 
             // Draw the per-line translucent background box. RectangleArea's
             // 4-float ctor requires the bool checkForValidity 5th arg; pass
             // true to opt into the bounds check.
-            RectangleArea bg{
-                boxX0, boxY0, boxX1, boxY1,
-                /*checkForValidity=*/true
-            };
+            RectangleArea bg{boxX0, boxY0, boxX1, boxY1,
+                             /*checkForValidity=*/true};
             mce::Color bgColor{kColorBg[0], kColorBg[1], kColorBg[2], kColorBg[3]};
             ctx.fillRectangle(bg, bgColor, 1.0f);
 
             // Draw the text inside the box. Left column is anchored
             // at the box's left + kBoxLeftPad; right column is right-
             // aligned to the box's right edge.
-            const float textX0 = isRight
-                ? boxX0
-                : x0 + static_cast<float>(kBoxLeftPad);
-            const float textX1 = isRight
-                ? boxX0 + static_cast<float>(textW)
-                : x0 + static_cast<float>(kBoxLeftPad) + static_cast<float>(textW);
-            RectangleArea lineRect{
-                textX0, y, textX1, y + static_cast<float>(linePxH),
-                /*checkForValidity=*/true
-            };
+            const float textX0 = isRight ? boxX0 : x0 + static_cast<float>(kBoxLeftPad);
+            const float textX1 = isRight ? boxX0 + static_cast<float>(textW)
+                                         : x0 + static_cast<float>(kBoxLeftPad) + static_cast<float>(textW);
+            RectangleArea lineRect{textX0, y, textX1, y + static_cast<float>(linePxH),
+                                   /*checkForValidity=*/true};
             mce::Color lineColor{l.color.r, l.color.g, l.color.b, l.color.a};
             // ui::TextAlignment has only Left, Right, Center.
-            ctx.drawText(
-                font,
-                lineRect,
-                std::string{l.text},
-                lineColor,
-                1.0f,
-                isRight ? ui::TextAlignment::Right : ui::TextAlignment::Left,
-                // TextMeasureData / CaretMeasureData have no usable default
-                // constructor in LeviLamina 26.20.4. Use the MCAPI ctor.
-                TextMeasureData{
-                    kTextScale,
-                    0.0f,
-                    /*renderShadow=*/true,
-                    /*showColorSymbol=*/false,
-                    /*hideHyphen=*/false,
-                    isRight ? ui::TextAlignment::Right : ui::TextAlignment::Left
-                },
-                CaretMeasureData{
-                    /*position=*/0,
-                    /*shouldRender=*/false
-                });
+            ctx.drawText(font, lineRect, std::string{l.text}, lineColor, 1.0f,
+                         isRight ? ui::TextAlignment::Right : ui::TextAlignment::Left,
+                         // TextMeasureData / CaretMeasureData have no usable default
+                         // constructor in LeviLamina 26.20.4. Use the MCAPI ctor.
+                         TextMeasureData{kTextScale, 0.0f,
+                                         /*renderShadow=*/true,
+                                         /*showColorSymbol=*/false,
+                                         /*hideHyphen=*/false,
+                                         isRight ? ui::TextAlignment::Right : ui::TextAlignment::Left},
+                         CaretMeasureData{/*position=*/0,
+                                          /*shouldRender=*/false});
             y += static_cast<float>(linePxH);
         }
     };

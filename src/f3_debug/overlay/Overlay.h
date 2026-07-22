@@ -18,7 +18,9 @@ namespace f3_debug::overlay {
 
 struct Line {
     std::string text;
-    struct Rgba { float r, g, b, a; } color{1.0f, 1.0f, 1.0f, 1.0f};
+    struct Rgba {
+        float r, g, b, a;
+    } color{1.0f, 1.0f, 1.0f, 1.0f};
 };
 
 // Draw the F3 overlay onto the supplied context. The caller is expected

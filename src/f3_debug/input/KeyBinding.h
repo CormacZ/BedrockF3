@@ -40,8 +40,7 @@ constexpr int kF3KeyCode = 114;
 // Register a listener for the F3 toggle key. The returned listener
 // is owned by the caller and must be kept alive for the listener to
 // remain active; pass it back to unregisterToggleKey() to remove.
-[[nodiscard]] std::expected<std::shared_ptr<ll::event::ListenerBase>, std::string>
-registerToggleKey();
+[[nodiscard]] std::expected<std::shared_ptr<ll::event::ListenerBase>, std::string> registerToggleKey();
 
 // Unregister a previously registered F3 toggle listener.
 void unregisterToggleKey(std::shared_ptr<ll::event::ListenerBase> const& listener);

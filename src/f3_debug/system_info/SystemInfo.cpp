@@ -18,14 +18,12 @@ std::string wideToUtf8(wchar_t const* wstr) {
     if (wstr == nullptr || wstr[0] == L'\0') {
         return {};
     }
-    int needed = WideCharToMultiByte(
-        CP_UTF8, 0, wstr, -1, nullptr, 0, nullptr, nullptr);
+    int needed = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, nullptr, 0, nullptr, nullptr);
     if (needed <= 0) {
         return {};
     }
     std::string out(static_cast<std::size_t>(needed - 1), '\0');
-    int written = WideCharToMultiByte(
-        CP_UTF8, 0, wstr, -1, out.data(), needed, nullptr, nullptr);
+    int written = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, out.data(), needed, nullptr, nullptr);
     if (written <= 0) {
         return {};
     }
@@ -46,25 +44,16 @@ std::string cpuName() {
     // shows in System Information. The key exists on every
     // Windows install from XP onwards.
     HKEY hKey = nullptr;
-    LSTATUS openRc = RegOpenKeyExW(
-        HKEY_LOCAL_MACHINE,
-        L"HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0",
-        0,
-        KEY_READ,
-        &hKey);
+    LSTATUS openRc =
+        RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 0, KEY_READ, &hKey);
     if (openRc != ERROR_SUCCESS) {
         return "Unknown CPU";
     }
 
     wchar_t name[256] = {};
-    DWORD  size  = sizeof(name);
-    LSTATUS queryRc = RegQueryValueExW(
-        hKey,
-        L"ProcessorNameString",
-        nullptr,
-        nullptr,
-        reinterpret_cast<LPBYTE>(name),
-        &size);
+    DWORD size = sizeof(name);
+    LSTATUS queryRc =
+        RegQueryValueExW(hKey, L"ProcessorNameString", nullptr, nullptr, reinterpret_cast<LPBYTE>(name), &size);
     RegCloseKey(hKey);
 
     if (queryRc != ERROR_SUCCESS) {
@@ -85,7 +74,7 @@ std::string gpuName() {
         return "Unknown GPU";
     }
 
-    std::string result    = "Unknown GPU";
+    std::string result = "Unknown GPU";
     IDXGIAdapter1* adapter = nullptr;
     HRESULT enumRc = factory->EnumAdapters1(0, &adapter);
     if (SUCCEEDED(enumRc) && adapter != nullptr) {
@@ -115,10 +104,7 @@ std::string gpuName() {
 
 std::int64_t processMemoryUsed() {
     PROCESS_MEMORY_COUNTERS pmc = {};
-    if (GetProcessMemoryInfo(
-            GetCurrentProcess(),
-            &pmc,
-            sizeof(pmc))) {
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof(pmc))) {
         return static_cast<std::int64_t>(pmc.WorkingSetSize);
     }
     return 0;

@@ -37,7 +37,7 @@ public:
 
 private:
     ll::mod::NativeMod& mSelf;
-    config::F3Config     mConfig{};
+    config::F3Config mConfig{};
     bool mOverlayVisible = true;
 
     // Owned by the EventBus. Reset to unregister the render listener.

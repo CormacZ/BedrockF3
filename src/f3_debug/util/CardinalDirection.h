@@ -23,13 +23,11 @@
 namespace f3_debug::util {
 
 [[nodiscard]] constexpr std::string_view cardinalDirection(float yaw) noexcept {
-    constexpr std::array<std::string_view, 4> dirs = {
-        "South (+Z)", "West (-X)", "North (-Z)", "East (+X)"
-    };
+    constexpr std::array<std::string_view, 4> dirs = {"South (+Z)", "West (-X)", "North (-Z)", "East (+X)"};
     // Normalize yaw to [0, 360) so we can use a single closed-form
     // mapping without separate branches for negative yaws.
     const float normalized = std::fmod(yaw + 360.0f, 360.0f);
-    const int   idx        = static_cast<int>(std::floor((normalized + 45.0f) / 90.0f)) % 4;
+    const int idx = static_cast<int>(std::floor((normalized + 45.0f) / 90.0f)) % 4;
     return dirs[idx];
 }
 
@@ -44,7 +42,7 @@ namespace f3_debug::util {
         "Towards positive X",
     };
     const float normalized = std::fmod(yaw + 360.0f, 360.0f);
-    const int   idx        = static_cast<int>(std::floor((normalized + 45.0f) / 90.0f)) % 4;
+    const int idx = static_cast<int>(std::floor((normalized + 45.0f) / 90.0f)) % 4;
     return axes[idx];
 }
 

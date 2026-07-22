@@ -14,12 +14,9 @@ public:
     Uptime() : mStart(std::chrono::steady_clock::now()) {}
 
     [[nodiscard]] std::string format() const {
-        const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::steady_clock::now() - mStart).count();
-        return std::format("{:02}:{:02}:{:02}",
-            elapsed / 3600,
-            (elapsed % 3600) / 60,
-            elapsed % 60);
+        const auto elapsed =
+            std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - mStart).count();
+        return std::format("{:02}:{:02}:{:02}", elapsed / 3600, (elapsed % 3600) / 60, elapsed % 60);
     }
 
     void reset() noexcept { mStart = std::chrono::steady_clock::now(); }

@@ -44,9 +44,7 @@ std::shared_ptr<ll::event::ListenerBase> makeRenderListener() {
             const auto now = std::chrono::steady_clock::now();
             double deltaMs = 0.0;
             if (lastTick->time_since_epoch().count() != 0) {
-                deltaMs = std::chrono::duration<double, std::milli>(
-                              now - *lastTick)
-                              .count();
+                deltaMs = std::chrono::duration<double, std::milli>(now - *lastTick).count();
             }
             *lastTick = now;
 
