@@ -51,12 +51,11 @@ constexpr std::array<float, 4> kColorBody   = {1.00f, 1.00f, 1.00f, 1.0f};
 constexpr std::array<float, 4> kColorOk     = {0.55f, 1.00f, 0.55f, 1.0f};
 constexpr std::array<float, 4> kColorWarn   = {1.00f, 0.85f, 0.30f, 1.0f};
 // Translucent gray for the per-line background boxes. Java Edition's
-// F3 panel uses a very-transparent dark-gray background. We go 10%
-// alpha so the boxes are ghostly -- enough to give each line a
-// faint backdrop for readability against busy textures, not so much
-// that they cover the world. Java's alpha is hard to measure from
-// a screenshot but appears to be in the 10-15% range.
-constexpr std::array<float, 4> kColorBg     = {0.20f, 0.20f, 0.20f, 0.10f};
+// F3 panel uses a dark-gray background that is mostly transparent:
+// about 80% transparent / 20% opaque. The user asked for that
+// exact look -- "80% transparent and 20% not transparent" -- so we
+// use 0.20 alpha (the BG is 20% opaque, 80% see-through).
+constexpr std::array<float, 4> kColorBg     = {0.20f, 0.20f, 0.20f, 0.20f};
 
 Line makeLine(std::string text, std::span<const float, 4> color) {
     return Line{
@@ -291,13 +290,34 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
     // that the value type doesn't have a get() or -> member.
     // Chaining the offsets directly and dAccessing the inner
     // glm::vec2 bypasses the TypedStorage entirely.
-    const auto& size = ll::memory::dAccess<glm::vec2>(
-        &ctx,
-        offsetof(MinecraftUIRenderContext, mScreenContext)
-        + offsetof(ScreenContext, viewport)
-        + offsetof(mce::ViewportInfo, size));
-    const int screenW = static_cast<int>(size.x);
-    const int screenH = static_cast<int>(size.y);
+    //
+    // If the offset chain produces a non-positive value (e.g.
+    // because the render context's mScreenContext is in an
+    // unexpected state during the first few frames after enable),
+    // we fall back to the Windows API (GetSystemMetrics), which
+    // gives the monitor size in pixels. For a fullscreen game the
+    // monitor size IS the render size, so the right column lands
+    // in the correct place.
+    int screenW = 0;
+    int screenH = 0;
+    try {
+        const auto& size = ll::memory::dAccess<glm::vec2>(
+            &ctx,
+            offsetof(MinecraftUIRenderContext, mScreenContext)
+            + offsetof(ScreenContext, viewport)
+            + offsetof(mce::ViewportInfo, size));
+        screenW = static_cast<int>(size.x);
+        screenH = static_cast<int>(size.y);
+    } catch (...) {
+        // Fall through to the Windows API fallback below.
+    }
+    if (screenW <= 0 || screenH <= 0) {
+        // Windows API fallback. <Windows.h> is transitively included
+        // by Bedrock headers in the build, so we don't need to
+        // include it explicitly here.
+        screenW = GetSystemMetrics(SM_CXSCREEN);
+        screenH = GetSystemMetrics(SM_CYSCREEN);
+    }
 
     const auto right = buildRightLines(screenW, screenH);
 
