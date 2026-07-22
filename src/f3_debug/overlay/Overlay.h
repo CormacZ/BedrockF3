@@ -22,7 +22,10 @@ struct Line {
 };
 
 // Draw the F3 overlay onto the supplied context. The caller is expected
-// to have already verified that the overlay is enabled.
-void draw(MinecraftUIRenderContext& ctx);
+// to have already verified that the overlay is enabled. `deltaMs` is the
+// wall-clock time elapsed since the previous frame in milliseconds;
+// pass 0.0 on the first frame (no previous sample) and the FpsCounter
+// will simply skip that sample.
+void draw(MinecraftUIRenderContext& ctx, double deltaMs);
 
 } // namespace f3_debug::overlay

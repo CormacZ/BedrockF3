@@ -62,16 +62,22 @@ util::Uptime& sessionState() {
 
 } // namespace
 
-// Build the F3 lines. The FPS counter is ticked here so the value
-// we render is consistent with the one we just sampled.
-std::vector<Line> buildLines() {
+// Build the F3 lines. The FPS counter is ticked with the delta passed
+// in from the render listener so the value we render is the same
+// sample we just recorded.
+std::vector<Line> buildLines(double frameDeltaMs) {
     std::vector<Line> lines;
 
-    auto& fps  = frameState();
-    const double ms = fps.lastDeltaMs();
+    auto& fps = frameState();
+    // Tick the FPS counter with the actual frame delta. On the very
+    // first frame after enable() the listener has no previous sample
+    // and passes 0.0; in that case tick() returns 0 and we just
+    // display "FPS:    0   Frame: 0.00 ms" for that single frame.
+    const int   fpsVal = static_cast<int>(fps.tick(frameDeltaMs));
+    const double ms    = fps.lastDeltaMs();
     lines.push_back(makeLine("Minecraft Bedrock (BedrockF3)", kColorHeader));
     lines.push_back(makeLine(std::format("FPS: {:>4}   Frame: {:.2f} ms",
-        static_cast<int>(fps.tick(ms > 0.0 ? ms : 0.0)), ms), kColorBody));
+        fpsVal, ms), kColorBody));
     lines.push_back(makeLine(std::format("Uptime: {}", sessionState().format()), kColorBody));
     lines.push_back({}); // spacer
 
@@ -126,8 +132,8 @@ constexpr float kTextScale = 1.0f;
 // background height will need to be recomputed.
 constexpr int kLineHeightPx = 9;
 
-void draw(MinecraftUIRenderContext& ctx) {
-    const auto lines = buildLines();
+void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
+    const auto lines = buildLines(deltaMs);
 
     // The Font used for in-game debug strings. MinecraftUIRenderContext
     // keeps the debug FontHandle in a private member (`mDebugTextFontHandle`).
