@@ -3,6 +3,7 @@
 #include "f3_debug/overlay/Overlay.h"
 
 #include "f3_debug/F3Debug.h"
+#include "f3_debug/system_info/SystemInfo.h"
 #include "f3_debug/util/CardinalDirection.h"
 
 #include <ll/api/Versions.h>
@@ -235,11 +236,9 @@ constexpr int kLineHeightPx = 9;
 //
 //   Minecraft 1.21.11 (1.21.11/<commit>)
 //   Display: 1920x1080
-//
-// GPU name, CPU, OpenGL version, and the rest of Java's right column
-// are deliberately deferred to a follow-up -- they need Windows API
-// (DXGI for GPU, __cpuid for CPU brand, GetSystemMetrics for the
-// display device name) which is a chunkier change.
+//   CPU: 12th Gen Intel(R) Core(TM) i5-12600K
+//   GPU: NVIDIA GeForce RTX 3060
+//   Mem: 42% 863/2048MB
 std::vector<Line> buildRightLines(int screenW, int screenH) {
     std::vector<Line> lines;
 
@@ -261,6 +260,46 @@ std::vector<Line> buildRightLines(int screenW, int screenH) {
         lines.push_back(makeLine(std::format("Display: {}x{}", screenW, screenH), kColorBody));
     } else {
         lines.push_back(makeLine("Display: unknown", kColorBody));
+    }
+
+    // CPU brand from the registry. Wrapped in a function-local
+    // try/catch so a registry hiccup doesn't break the whole
+    // panel; we just fall back to "Unknown CPU".
+    try {
+        const std::string cpu = system::cpuName();
+        lines.push_back(makeLine(std::format("CPU: {}", cpu), kColorBody));
+    } catch (...) {
+        lines.push_back(makeLine("CPU: unknown", kColorBody));
+    }
+
+    // GPU name from DXGI (first adapter). Same fall-back pattern.
+    try {
+        const std::string gpu = system::gpuName();
+        lines.push_back(makeLine(std::format("GPU: {}", gpu), kColorBody));
+    } catch (...) {
+        lines.push_back(makeLine("GPU: unknown", kColorBody));
+    }
+
+    // Memory: percentage + used / total in MB. Java's format is
+    // "Mem: 42% 863/2048MB" -- 3-digit zero-padded used, total
+    // also in MB. We don't zero-pad (Java does for alignment,
+    // but that's purely cosmetic).
+    try {
+        const auto total = system::totalMemory();
+        const auto avail = system::availableMemory();
+        if (total > 0) {
+            const auto used    = total - avail;
+            const int  percent = static_cast<int>(100 * used / total);
+            const auto usedMB  = used / (1024 * 1024);
+            const auto totalMB = total / (1024 * 1024);
+            lines.push_back(makeLine(
+                std::format("Mem: {}% {}/{}MB", percent, usedMB, totalMB),
+                kColorBody));
+        } else {
+            lines.push_back(makeLine("Mem: unknown", kColorBody));
+        }
+    } catch (...) {
+        lines.push_back(makeLine("Mem: unknown", kColorBody));
     }
 
     return lines;
