@@ -59,6 +59,15 @@ target("BedrockF3")
     add_includedirs("src")
     add_headerfiles("src/**.h")
 
+    -- The system_info module uses DXGI (IDXGIAdapter::GetDesc1) for
+    -- GPU name detection. dxgi.lib + dxguid.lib are part of the
+    -- Windows SDK and are auto-found by clang-cl, but we name them
+    -- explicitly so xmake's dependency analyser is happy. Only
+    -- needed on Windows (which is the only platform we build for).
+    if is_plat("windows") then
+        add_links("dxgi", "dxguid")
+    end
+
     before_link(function(target)
         import("lib.detect.find_file")
         import("core.project.config")
