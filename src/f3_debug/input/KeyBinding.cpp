@@ -33,7 +33,7 @@ registerToggleKey() {
     return listener;
 }
 
-void unregisterToggleKey(std::shared_ptr<ll::event::ListenerBase> listener) {
+void unregisterToggleKey(std::shared_ptr<ll::event::ListenerBase> const& listener) {
     if (!listener) {
         return;
     }

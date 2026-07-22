@@ -34,12 +34,13 @@ bool F3Debug::enable() {
 
     mRenderListener = events::makeRenderListener();
 
-    if (auto result = input::registerToggleKey(); !result) {
-        logger.error("Failed to register F3 key: {}", result.error());
+    auto keyResult = input::registerToggleKey();
+    if (!keyResult) {
+        logger.error("Failed to register F3 key: {}", keyResult.error());
         disable();
         return false;
     }
-    mKeyListener = *result;
+    mKeyListener = *keyResult;
     logger.info("F3 toggle active (low-level KeyInputEvent listener)");
 
     return true;

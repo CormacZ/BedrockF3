@@ -44,7 +44,7 @@ constexpr int kF3KeyCode = 114;
 registerToggleKey();
 
 // Unregister a previously registered F3 toggle listener.
-void unregisterToggleKey(std::shared_ptr<ll::event::ListenerBase> listener);
+void unregisterToggleKey(std::shared_ptr<ll::event::ListenerBase> const& listener);
 
 } // namespace f3_debug::input
 
