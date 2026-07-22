@@ -120,6 +120,12 @@ constexpr int kPanelY     = 4;
 constexpr int kPadding    = 6;
 constexpr float kTextScale = 1.0f;
 
+// Bedrock's default font (Mojangles) has a 9-pixel line height at scale 1.0.
+// Font has no public line-height accessor, so we hardcode the value. If a
+// non-default font is active the value may differ; in that case the panel
+// background height will need to be recomputed.
+constexpr int kLineHeightPx = 9;
+
 void draw(MinecraftUIRenderContext& ctx) {
     const auto lines = buildLines();
 
@@ -133,9 +139,11 @@ void draw(MinecraftUIRenderContext& ctx) {
         offsetof(MinecraftUIRenderContext, mDebugTextFontHandle));
     Font& font = fontHandle.getFont();
 
-    // Measure each line so we can size the background rectangle.
-    int   maxPxW = 0;
-    int   linePxH = ctx.getLineLength(font, "M", kTextScale, /*showColorSymbol=*/false);
+    // Measure each line so we can size the background rectangle. getLineLength
+    // returns the rendered WIDTH of a string, not its height -- we use the
+    // hardcoded kLineHeightPx for the vertical stride since Font has no
+    // public line-height accessor.
+    int maxPxW = 0;
     for (auto const& l : lines) {
         if (l.text.empty()) {
             continue;
@@ -143,8 +151,9 @@ void draw(MinecraftUIRenderContext& ctx) {
         maxPxW = std::max(maxPxW,
             ctx.getLineLength(font, l.text, kTextScale, /*showColorSymbol=*/false));
     }
-    const int boxW = maxPxW + kPadding * 2;
-    const int boxH = linePxH * static_cast<int>(lines.size()) + kPadding * 2;
+    const int linePxH = static_cast<int>(static_cast<float>(kLineHeightPx) * kTextScale);
+    const int boxW    = maxPxW + kPadding * 2;
+    const int boxH    = linePxH * static_cast<int>(lines.size()) + kPadding * 2;
     const float x0 = static_cast<float>(kPanelX);
     const float y0 = static_cast<float>(kPanelY);
 
