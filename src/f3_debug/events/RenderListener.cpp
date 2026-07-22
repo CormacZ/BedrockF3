@@ -7,6 +7,9 @@
 
 #include <ll/api/event/EventBus.h>
 #include <ll/api/event/ListenerBase.h>
+#include <ll/api/service/TargetedBedrock.h>
+
+#include <mc/client/game/ClientInstance.h>
 
 #include <chrono>
 
@@ -24,6 +27,17 @@ std::shared_ptr<ll::event::ListenerBase> makeRenderListener() {
     return bus.emplaceListener<ll::event::render::AfterUIRenderEvent>(
         [lastTick](ll::event::render::AfterUIRenderEvent& ev) {
             if (!F3Debug::getInstance().isOverlayVisible()) {
+                return;
+            }
+
+            // Only draw when a local player exists. getClientInstance() can
+            // be null during early boot, and the main menu has no local
+            // player, so the overlay is suppressed in both cases. The
+            // F3 toggle state is preserved across menu <-> world
+            // transitions, so re-entering a world brings the overlay back
+            // automatically if it was on.
+            auto& client = *ll::service::getClientInstance();
+            if (client.getLocalPlayer() == nullptr) {
                 return;
             }
 
