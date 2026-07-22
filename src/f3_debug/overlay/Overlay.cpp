@@ -74,10 +74,15 @@ std::vector<Line> buildLines(double frameDeltaMs) {
     // and passes 0.0; in that case tick() returns 0 and we just
     // display "FPS:    0   Frame: 0.00 ms" for that single frame.
     const int   fpsVal = static_cast<int>(fps.tick(frameDeltaMs));
-    const double ms    = fps.lastDeltaMs();
+    // Compute the frame time from the smoothed FPS so the two values
+    // always agree. lastDeltaMs() returns the raw delta between two
+    // consecutive AfterUIRenderEvent calls, which Bedrock may fire
+    // multiple times per frame, so it can disagree with the smoothed
+    // FPS at high frame rates.
+    const double frameMs = fpsVal > 0 ? 1000.0 / static_cast<double>(fpsVal) : 0.0;
     lines.push_back(makeLine("Minecraft Bedrock (BedrockF3)", kColorHeader));
     lines.push_back(makeLine(std::format("FPS: {:>4}   Frame: {:.2f} ms",
-        fpsVal, ms), kColorBody));
+        fpsVal, frameMs), kColorBody));
     lines.push_back(makeLine(std::format("Uptime: {}", sessionState().format()), kColorBody));
     lines.push_back({}); // spacer
 
