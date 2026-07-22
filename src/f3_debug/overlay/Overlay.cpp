@@ -2,6 +2,7 @@
 
 #include "f3_debug/overlay/Overlay.h"
 
+#include "f3_debug/F3Debug.h"
 #include "f3_debug/util/CardinalDirection.h"
 
 #include <ll/api/memory/Memory.h>
@@ -28,6 +29,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <exception>
 #include <format>
 #include <span>
 #include <string_view>
@@ -131,11 +133,17 @@ std::vector<Line> buildLines(double frameDeltaMs) {
             auto& blockSource = player->getDimensionBlockSource();
             BlockPos bp(pos.x, pos.y, pos.z);
             if (auto* biome = blockSource.tryGetBiome(bp); biome != nullptr) {
-                biomeName = biome->mHash.getString();
+                // mHash is wrapped in ll::TypedStorage, so we need to
+                // apply operator-> to get the underlying HashedString,
+                // then call getString() on that.
+                biomeName = biome->mHash->getString();
             }
-        } catch (...) {
+        } catch (std::exception const& e) {
             // Some dimensions (e.g. older custom ones) can throw on
-            // biome access. Swallow and keep the fallback.
+            // biome access. Log the message so it's not completely
+            // hidden, then keep the fallback name for this frame.
+            F3Debug::getInstance().getSelf().getLogger().warn(
+                "biome lookup failed: {}", e.what());
         }
 
         lines.push_back(makeLine(std::format("XYZ: {:.3f} / {:.3f} / {:.3f}",
