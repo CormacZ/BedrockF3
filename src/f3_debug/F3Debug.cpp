@@ -39,6 +39,8 @@ bool F3Debug::enable() {
         disable();
         return false;
     }
+    mKeyListener = *result;
+    logger.info("F3 toggle active (low-level KeyInputEvent listener)");
 
     return true;
 }
@@ -52,7 +54,11 @@ bool F3Debug::disable() {
         mRenderListener.reset();
     }
 
-    input::unregisterToggleKey();
+    if (mKeyListener) {
+        input::unregisterToggleKey(mKeyListener);
+        mKeyListener.reset();
+    }
+
     return true;
 }
 

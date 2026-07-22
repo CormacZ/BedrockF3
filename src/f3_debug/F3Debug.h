@@ -41,11 +41,10 @@ private:
     bool mOverlayVisible = true;
 
     // Owned by the EventBus. Reset to unregister the render listener.
-    // The F3 toggle key lives in ll::input::KeyRegistry, which keeps the
-    // key entry alive for the lifetime of the registered handlers; the
-    // handler closure holds a reference to the F3Debug singleton, so the
-    // toggle key effectively lives for the mod's lifetime.
+    // The F3 toggle key is handled by an ll::event::input::KeyInputEvent
+    // listener; storing the shared_ptr here lets disable() unregister it.
     std::shared_ptr<ll::event::ListenerBase> mRenderListener;
+    std::shared_ptr<ll::event::ListenerBase> mKeyListener;
 };
 
 } // namespace f3_debug

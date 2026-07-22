@@ -4,33 +4,40 @@
 
 #include "f3_debug/F3Debug.h"
 
-#include <ll/api/input/KeyRegistry.h>
-#include <ll/api/mod/NativeMod.h>
+#include <ll/api/event/EventBus.h>
+#include <ll/api/event/ListenerBase.h>
+#include <ll/api/event/input/KeyInputEvent.h>
 
-#include <mc/client/game/IClientInstance.h>
-#include <mc/deps/input/enums/FocusImpact.h>
+#include <memory>
 
 namespace f3_debug::input {
 
-std::expected<void, std::string> registerToggleKey() {
-    auto& registry = ll::input::KeyRegistry::getInstance();
-    auto& handle   = registry.getOrCreateKey(
-        kToggleKeyName,
-        std::vector<int>{kF3KeyCode},
-        /*allowRemap=*/true);  // 4th arg defaults to mod::NativeMod::current()
-
-    handle.registerButtonDownHandler(
-        [](FocusImpact /*focus*/, IClientInstance& /*client*/) {
+std::expected<std::shared_ptr<ll::event::ListenerBase>, std::string>
+registerToggleKey() {
+    auto& bus = ll::event::EventBus::getInstance();
+    auto listener = bus.emplaceListener<ll::event::input::KeyInputEvent>(
+        [](ll::event::input::KeyInputEvent& ev) {
+            // Only act on the down event so a single press is one
+            // toggle, not one toggle per key repeat.
+            if (!ev.isDown()) {
+                return;
+            }
+            // Match F3 only. Other F-keys are left alone so they
+            // can be bound by the user (or by other mods) without
+            // colliding with this mod.
+            if (ev.keyCode() != kF3KeyCode) {
+                return;
+            }
             F3Debug::getInstance().toggleOverlay();
         });
-
-    return {};
+    return listener;
 }
 
-void unregisterToggleKey() {
-    // KeyHandle destructor unregisters handlers. The registry releases the
-    // entry when the last reference to the handle goes out of scope.
-    // The handle is owned by F3Debug; nothing extra to do here.
+void unregisterToggleKey(std::shared_ptr<ll::event::ListenerBase> listener) {
+    if (!listener) {
+        return;
+    }
+    ll::event::EventBus::getInstance().removeListener(listener);
 }
 
 } // namespace f3_debug::input
