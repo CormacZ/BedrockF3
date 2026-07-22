@@ -1,0 +1,52 @@
+---
+# clang-format config for BedrockF3.
+#
+# This is the C++ analog of Prettier. One config file, no
+# per-developer debate, enforced in CI.
+#
+# We use the LLVM base style with two adjustments:
+#   - 4-space indent (matches the existing source; LLVM default is 2)
+#   - Pointer alignment left (int* p, not int *p) -- matches the
+#     existing style in F3Debug.cpp and RenderListener.cpp
+#
+# Anything that doesn't match gets reformatted by `clang-format -i`
+# on save. The CI step `clang-format --dry-run --Werror` fails the
+# build on any unformatted diff.
+
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 120
+AccessModifierOffset: -4
+AlignConsecutiveDeclarations: false
+AlignConsecutiveAssignments: false
+PointerAlignment: Left
+ReferenceAlignment: Left
+BraceWrapping:
+  AfterFunction: false
+  AfterClass: false
+  AfterStruct: false
+  AfterControlStatement: Always
+  AfterEnum: false
+  AfterNamespace: false
+  AfterExternBlock: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLambdasOnASingleLine: All
+AllowShortLoopsOnASingleLine: false
+SortIncludes: true
+IncludeBlocks: Preserve
+IncludeCategories:
+  - Regex: '^<ll/'
+    Priority: 1
+  - Regex: '^<mc/'
+    Priority: 2
+  - Regex: '^<glm/'
+    Priority: 3
+  - Regex: '^<.*\.h>'
+    Priority: 4
+  - Regex: '^".*"'
+    Priority: 5
+Standard: c++20
+FixNamespaceComments: false

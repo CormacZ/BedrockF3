@@ -1,0 +1,427 @@
+// src/f3_debug/overlay/Overlay.cpp
+
+#include "f3_debug/overlay/Overlay.h"
+
+#include "f3_debug/F3Debug.h"
+#include "f3_debug/system_info/SystemInfo.h"
+#include "f3_debug/util/CardinalDirection.h"
+
+#include <ll/api/Versions.h>
+#include <ll/api/memory/Memory.h>
+#include <ll/api/service/TargetedBedrock.h>
+
+#include <mc/client/game/ClientInstance.h>
+#include <mc/client/game/IClientInstance.h>
+#include <mc/client/gui/CaretMeasureData.h>
+#include <mc/client/gui/FontHandle.h>
+#include <mc/client/gui/GuiData.h>
+#include <mc/client/gui/ScreenSizeData.h>
+#include <mc/client/gui/TextAlignment.h>
+#include <mc/client/gui/TextMeasureData.h>
+#include <mc/client/gui/controls/UIRenderContext.h>
+#include <mc/client/gui/screens/ScreenContext.h>
+#include <mc/client/player/LocalPlayer.h>
+#include <mc/client/renderer/screen/MinecraftUIRenderContext.h>
+#include <mc/deps/core/math/Color.h>
+#include <mc/deps/core/utility/NonOwnerPointer.h>
+#include <mc/deps/input/RectangleArea.h>
+#include <mc/deps/renderer/ViewportInfo.h>
+#include <mc/world/level/BlockPos.h>
+#include <mc/world/level/BlockSource.h>
+#include <mc/world/level/biome/Biome.h>
+#include <mc/world/level/dimension/Dimension.h>
+#include <glm/glm.hpp>
+
+#include <Windows.h>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+#include <exception>
+#include <format>
+#include <span>
+#include <string_view>
+#include <utility>
+
+namespace f3_debug::overlay {
+
+namespace {
+
+// Per-line colors. Indexed into by a small enum below.
+constexpr std::array<float, 4> kColorHeader = {0.40F, 0.70F, 1.00F, 1.0F};
+constexpr std::array<float, 4> kColorBody = {1.00F, 1.00F, 1.00F, 1.0F};
+constexpr std::array<float, 4> kColorOk = {0.55F, 1.00F, 0.55F, 1.0F};
+constexpr std::array<float, 4> kColorWarn = {1.00F, 0.85F, 0.30F, 1.0F};
+// Translucent gray for the per-line background boxes. Java Edition's
+// F3 panel uses a dark-gray background that is mostly transparent:
+// about 80% transparent / 20% opaque. The user asked for that
+// exact look -- "80% transparent and 20% not transparent" -- so we
+// use 0.20 alpha (the BG is 20% opaque, 80% see-through).
+constexpr std::array<float, 4> kColorBg = {0.20F, 0.20F, 0.20F, 0.20F};
+
+Line makeLine(std::string text, std::span<const float, 4> color) {
+    return Line{.text = std::move(text), .color = {.r = color[0], .g = color[1], .b = color[2], .a = color[3]}};
+}
+
+// Frame-local state. A function-local static lives for the process
+// lifetime and is thread-safe to construct under C++11.
+util::FpsCounter& frameState() {
+    static util::FpsCounter fps;
+    return fps;
+}
+
+util::Uptime& sessionState() {
+    static util::Uptime up;
+    return up;
+}
+
+} // namespace
+
+// Build the F3 lines. The FPS counter is ticked with the delta passed
+// in from the render listener so the value we render is the same
+// sample we just recorded.
+//
+// Returns the LEFT column (player/world info) and the RIGHT column
+// (system info) as separate vectors. The render function draws the
+// left column flush-left at (kPanelX, kPanelY) and the right column
+// flush-right at (screenW - kBoxRightPad, kPanelY).
+//
+// Layout (Java Edition F3 style, with a few Bedrock-specific extras):
+//
+//   LEFT                          RIGHT
+//   -----                         -----
+//   Minecraft Bedrock (BedrockF3) Minecraft 1.21.11 (1.21.11/<build>)
+//   FPS:  216   Frame: 4.41 ms    Display: 1920x1080
+//
+//   XYZ: 511.052 / 11.620 / ...
+//   Block: 511 11 510
+//   Chunk: 31 31 [15 02]
+//   Facing: south (Towards positive Z) (0.5 / -1.4)
+//   Biome: plains
+//   Section-relative: 15 11 02
+//
+//   Dimension: Overworld
+//   Uptime: 00:03:03
+struct PanelLines {
+    std::vector<Line> left;
+    std::vector<Line> right;
+};
+
+PanelLines buildLines(double frameDeltaMs) {
+    PanelLines lines;
+
+    auto& fps = frameState();
+    // Tick the FPS counter with the actual frame delta. On the very
+    // first frame after enable() the listener has no previous sample
+    // and passes 0.0; in that case tick() returns 0 and we just
+    // display "FPS:    0   Frame: 0.00 ms" for that single frame.
+    const int fpsVal = static_cast<int>(fps.tick(frameDeltaMs));
+    // Compute the frame time from the smoothed FPS so the two values
+    // always agree. lastDeltaMs() returns the raw delta between two
+    // consecutive AfterUIRenderEvent calls, which Bedrock may fire
+    // multiple times per frame, so it can disagree with the smoothed
+    // FPS at high frame rates.
+    const double frameMs = fpsVal > 0 ? 1000.0 / static_cast<double>(fpsVal) : 0.0;
+    lines.left.push_back(makeLine("Minecraft Bedrock (BedrockF3)", kColorHeader));
+    lines.left.push_back(makeLine(std::format("FPS: {:>4}   Frame: {:.2F} ms", fpsVal, frameMs), kColorBody));
+    lines.left.push_back({}); // spacer
+
+    auto& client = *ll::service::getClientInstance();
+    LocalPlayer* player = client.getLocalPlayer();
+    if (player != nullptr) {
+        const Vec3 pos = player->getPosition();
+        const Vec2 rot = player->getRotation();
+
+        const int blockX = static_cast<int>(std::floor(pos.x));
+        const int blockY = static_cast<int>(std::floor(pos.y));
+        const int blockZ = static_cast<int>(std::floor(pos.z));
+        const int chunkX = blockX >> 4;
+        const int chunkZ = blockZ >> 4;
+        // Section-relative position is the offset within the 16x16x16
+        // sub-chunk. C++ % on a negative integer can return a negative
+        // result, so we normalize to [0, 16) explicitly.
+        const int inChunkX = ((blockX & 15) + 16) % 16;
+        const int inChunkZ = ((blockZ & 15) + 16) % 16;
+        const int inSectionX = inChunkX;
+        const int inSectionY = ((blockY & 15) + 16) % 16;
+        const int inSectionZ = inChunkZ;
+
+        // Look up the biome at the player's block position. tryGetBiome
+        // returns nullptr if the chunk is not loaded; fall back to
+        // "unknown" in that case rather than crashing.
+        std::string biomeName = "unknown";
+        try {
+            auto& blockSource = player->getDimensionBlockSource();
+            BlockPos bp(pos.x, pos.y, pos.z);
+            if (const auto* biome = blockSource.tryGetBiome(bp); biome != nullptr) {
+                // mHash is wrapped in ll::TypedStorage, so we need to
+                // apply operator-> to get the underlying HashedString,
+                // then call getString() on that.
+                biomeName = biome->mHash->getString();
+            }
+        } catch (std::exception const& e) {
+            // Some dimensions (e.g. older custom ones) can throw on
+            // biome access. Log the message so it's not completely
+            // hidden, then keep the fallback name for this frame.
+            F3Debug::getInstance().getSelf().getLogger().warn("biome lookup failed: {}", e.what());
+        }
+
+        lines.left.push_back(makeLine(std::format("XYZ: {:.3F} / {:.3F} / {:.3F}", pos.x, pos.y, pos.z), kColorOk));
+        lines.left.push_back(makeLine(std::format("Block: {} {} {}", blockX, blockY, blockZ), kColorBody));
+        lines.left.push_back(
+            makeLine(std::format("Chunk: {} {} [{:02d} {:02d}]", chunkX, chunkZ, inChunkX, inChunkZ), kColorBody));
+        // Java format: "Facing: <cardinal> (Towards <axis>) (<yaw> / <pitch>)"
+        lines.left.push_back(makeLine(std::format("Facing: {} ({}) ({:.1F} / {:.1F})", util::cardinalDirection(rot.y),
+                                                  util::cardinalAxisName(rot.y), rot.y, rot.x),
+                                      kColorBody));
+        lines.left.push_back(makeLine(std::format("Biome: {}", biomeName), kColorBody));
+        lines.left.push_back(makeLine(
+            std::format("Section-relative: {:02d} {:02d} {:02d}", inSectionX, inSectionY, inSectionZ), kColorBody));
+    } else {
+        // The render listener already early-outs on null LocalPlayer
+        // before calling us, so this branch is defensive only.
+        lines.left.push_back(makeLine("Player unavailable (join a world to populate)", kColorWarn));
+    }
+
+    lines.left.push_back({}); // spacer
+    if (player != nullptr) {
+        // getLevel() returns Level& (always non-null while player is alive).
+        const int dim = static_cast<int>(player->getDimensionId());
+        std::string name = "Unknown";
+        switch (dim) {
+        case 0:
+            name = "Overworld";
+            break;
+        case 1:
+            name = "Nether";
+            break;
+        case 2:
+            name = "The End";
+            break;
+        default:
+            name = std::format("Dimension {}", dim);
+            break;
+        }
+        lines.left.push_back(makeLine(std::format("Dimension: {}", name), kColorBody));
+    }
+
+    // Bedrock-specific extras at the bottom. Java doesn't have a
+    // session timer, but it's useful for tracking how long a debug
+    // session has been running.
+    lines.left.push_back(makeLine(std::format("Uptime: {}", sessionState().format()), kColorBody));
+
+    return lines;
+}
+
+// Position the panel at the top-left of the screen.
+constexpr int kPanelX = 4;
+constexpr int kPanelY = 4;
+// Per-line padding: 2px of slack between the text and the left edge
+// of its background box, 4px on the right. Matches Java Edition's
+// F3 panel where the text is nearly flush-left with a small right
+// pad.
+constexpr int kBoxLeftPad = 2;
+constexpr int kBoxRightPad = 4;
+constexpr float kTextScale = 1.0F;
+
+// Bedrock's default font (Mojangles) has a 9-pixel line height at scale 1.0.
+// Font has no public line-height accessor, so we hardcode the value. If a
+// non-default font is active the value may differ; in that case the panel
+// background height will need to be recomputed.
+constexpr int kLineHeightPx = 9;
+
+// Build the right column. The right column shows system info, similar
+// to Java Edition's F3 panel:
+//
+//   Minecraft 1.21.11 (1.21.11/<commit>)
+//   Display: 1920x1080
+//   CPU: 12th Gen Intel(R) Core(TM) i5-12600K
+//   GPU: NVIDIA GeForce RTX 3060
+//   Mem: 42% 863/2048MB
+std::vector<Line> buildRightLines(int screenW, int screenH) {
+    std::vector<Line> lines;
+
+    // Game version. ll::getGameVersion() returns a data::Version parsed
+    // from Common::getBuildInfo(), including the build/commit suffix.
+    // We use the bare to_string() (e.g. "1.21.11+abc1234") and wrap it
+    // in Java's "Minecraft <ver> (<ver>)" format.
+    const auto ver = ll::getGameVersion();
+    const auto versionStr = ver.to_string();
+    lines.push_back(makeLine(std::format("Minecraft {}", versionStr), kColorBody));
+
+    // Display resolution. screenW and screenH are passed in by the
+    // caller (draw()), which read them from the render context's
+    // viewport. For a 1080p monitor at 100% scale this is 1920x1080.
+    // For a 4K monitor at 200% scale Bedrock reports 3840x2160
+    // (the OS handles the DPI scaling for the render target, so
+    // the number you see here matches the panel you see).
+    if (screenW > 0 && screenH > 0) {
+        lines.push_back(makeLine(std::format("Display: {}x{}", screenW, screenH), kColorBody));
+    } else {
+        lines.push_back(makeLine("Display: unknown", kColorBody));
+    }
+
+    // CPU brand from the registry. Wrapped in a function-local
+    // try/catch so a registry hiccup doesn't break the whole
+    // panel; we just fall back to "Unknown CPU".
+    try {
+        const std::string cpu = system::cpuName();
+        lines.push_back(makeLine(std::format("CPU: {}", cpu), kColorBody));
+    } catch (...) {
+        lines.push_back(makeLine("CPU: unknown", kColorBody));
+    }
+
+    // GPU name from DXGI (first adapter). Same fall-back pattern.
+    try {
+        const std::string gpu = system::gpuName();
+        lines.push_back(makeLine(std::format("GPU: {}", gpu), kColorBody));
+    } catch (...) {
+        lines.push_back(makeLine("GPU: unknown", kColorBody));
+    }
+
+    // Memory: percentage + used / total in MB. Java's format is
+    // "Mem: 42% 863/2048MB" -- 3-digit zero-padded used, total
+    // also in MB. We don't zero-pad (Java does for alignment,
+    // but that's purely cosmetic).
+    try {
+        const auto total = system::totalMemory();
+        const auto avail = system::availableMemory();
+        if (total > 0) {
+            const auto used = total - avail;
+            const int percent = static_cast<int>(100 * used / total);
+            const auto usedMB = used / (1024LL * 1024);
+            const auto totalMB = total / (1024LL * 1024);
+            lines.push_back(makeLine(std::format("Mem: {}% {}/{}MB", percent, usedMB, totalMB), kColorBody));
+        } else {
+            lines.push_back(makeLine("Mem: unknown", kColorBody));
+        }
+    } catch (...) {
+        lines.push_back(makeLine("Mem: unknown", kColorBody));
+    }
+
+    return lines;
+}
+
+void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
+    const auto panel = buildLines(deltaMs);
+
+    // The Font used for in-game debug strings. MinecraftUIRenderContext
+    // keeps the debug FontHandle in a private member (`mDebugTextFontHandle`).
+    // There is no public getter for it, so we reach into the member via
+    // offsetof. If your build of LeviLamina adds a public getter later,
+    // replace this with the proper call.
+    auto& fontHandle = ll::memory::dAccess<FontHandle>(&ctx, offsetof(MinecraftUIRenderContext, mDebugTextFontHandle));
+    Font& font = fontHandle.getFont();
+
+    const int linePxH = static_cast<int>(static_cast<float>(kLineHeightPx) * kTextScale);
+    const auto x0 = kPanelX;
+    const auto y0 = kPanelY;
+
+    // Screen size. We chain through the storage offsets directly
+    // to read mce::ViewportInfo::size as a glm::vec2. The previous
+    // attempts (TypedStorage::get(), TypedStorage::operator->())
+    // tripped over the fact that the viewport field stores a
+    // reference (mce::ViewportInfo const&) -- clang kept collapsing
+    // the reference in its type deduction and then complaining
+    // that the value type doesn't have a get() or -> member.
+    // Chaining the offsets directly and dAccessing the inner
+    // glm::vec2 bypasses the TypedStorage entirely.
+    //
+    // If the offset chain produces a non-positive value (e.g.
+    // because the render context's mScreenContext is in an
+    // unexpected state during the first few frames after enable),
+    // we fall back to the Windows API (GetSystemMetrics), which
+    // gives the monitor size in pixels. For a fullscreen game the
+    // monitor size IS the render size, so the right column lands
+    // in the correct place.
+    int screenW = 0;
+    int screenH = 0;
+    try {
+        const auto& size = ll::memory::dAccess<glm::vec2>(&ctx, offsetof(MinecraftUIRenderContext, mScreenContext) +
+                                                                    offsetof(ScreenContext, viewport) +
+                                                                    offsetof(mce::ViewportInfo, size));
+        screenW = static_cast<int>(size.x);
+        screenH = static_cast<int>(size.y);
+    } catch (std::exception const& e) {
+        // The dAccess can throw if the render context's storage
+        // chain is in an unexpected state. Log and fall through
+        // to the Windows API fallback.
+        F3Debug::getInstance().getSelf().getLogger().warn("screen-size dAccess failed: {}", e.what());
+    }
+    if (screenW <= 0 || screenH <= 0) {
+        // Windows API fallback for a fullscreen game. GetSystemMetrics
+        // returns the monitor size in physical pixels, which is the
+        // same as the render size in a fullscreen Bedrock client.
+        screenW = GetSystemMetrics(SM_CXSCREEN);
+        screenH = GetSystemMetrics(SM_CYSCREEN);
+    }
+
+    const auto right = buildRightLines(screenW, screenH);
+
+    // Java Edition F3 style: one small translucent gray box per
+    // non-empty line, sized to that line's text width. Spacer lines
+    // (empty text) get no background, so the boxes don't bleed into
+    // the gaps between logical sections.
+    auto drawColumn = [&](std::vector<Line> const& col, bool isRight) {
+        float y = y0;
+        for (auto const& l : col) {
+            if (l.text.empty()) {
+                y += static_cast<float>(linePxH);
+                continue;
+            }
+
+            const int textW = ctx.getLineLength(font, l.text, kTextScale, /*showColorSymbol=*/false);
+            const float boxY0 = y;
+            const float boxY1 = y + static_cast<float>(linePxH);
+            // For the right column we anchor the box's RIGHT edge to
+            // the screen edge (minus the right pad). For the left
+            // column we anchor the box's LEFT edge to the panel x.
+            const float boxX0 =
+                isRight ? static_cast<float>(screenW) - static_cast<float>(textW) - static_cast<float>(kBoxRightPad)
+                        : x0;
+            const float boxX1 = isRight ? static_cast<float>(screenW)
+                                        : x0 + static_cast<float>(textW) + static_cast<float>(kBoxRightPad);
+
+            // Draw the per-line translucent background box. RectangleArea's
+            // 4-float ctor requires the bool checkForValidity 5th arg; pass
+            // true to opt into the bounds check.
+            RectangleArea bg{boxX0, boxY0, boxX1, boxY1,
+                             /*checkForValidity=*/true};
+            mce::Color bgColor{kColorBg[0], kColorBg[1], kColorBg[2], kColorBg[3]};
+            ctx.fillRectangle(bg, bgColor, 1.0F);
+
+            // Draw the text inside the box. Left column is anchored
+            // at the box's left + kBoxLeftPad; right column is right-
+            // aligned to the box's right edge.
+            const float textX0 = isRight ? boxX0 : x0 + static_cast<float>(kBoxLeftPad);
+            const float textX1 = isRight ? boxX0 + static_cast<float>(textW)
+                                         : x0 + static_cast<float>(kBoxLeftPad) + static_cast<float>(textW);
+            RectangleArea lineRect{textX0, y, textX1, y + static_cast<float>(linePxH),
+                                   /*checkForValidity=*/true};
+            mce::Color lineColor{l.color.r, l.color.g, l.color.b, l.color.a};
+            // ui::TextAlignment has only Left, Right, Center.
+            ctx.drawText(font, lineRect, std::string{l.text}, lineColor, 1.0F,
+                         isRight ? ui::TextAlignment::Right : ui::TextAlignment::Left,
+                         // TextMeasureData / CaretMeasureData have no usable default
+                         // constructor in LeviLamina 26.20.4. Use the MCAPI ctor.
+                         TextMeasureData{kTextScale, 0.0F,
+                                         /*renderShadow=*/true,
+                                         /*showColorSymbol=*/false,
+                                         /*hideHyphen=*/false,
+                                         isRight ? ui::TextAlignment::Right : ui::TextAlignment::Left},
+                         CaretMeasureData{/*position=*/0,
+                                          /*shouldRender=*/false});
+            y += static_cast<float>(linePxH);
+        }
+    };
+
+    drawColumn(panel.left, /*isRight=*/false);
+    if (screenW > 0) {
+        drawColumn(right, /*isRight=*/true);
+    }
+
+    ctx.flushText(0.0F, std::nullopt);
+}
+
+} // namespace f3_debug::overlay

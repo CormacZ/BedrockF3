@@ -1,0 +1,93 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+# ilammy/msvc-dev-cmd@v1 (the latest available, v1.13.0) is still on the
+# Node 20 runtime. The other actions in this workflow (checkout, cache,
+# upload-artifact) have all been bumped to Node 24 majors. Setting
+# FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 suppresses the deprecation warning
+# and forces the one remaining Node 20 action to run on Node 24.
+# See https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+jobs:
+  release-windows:
+    name: Windows release
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Cache xmake build
+        uses: actions/cache@v6
+        with:
+          path: |
+            .xmake
+            bin
+          key: ${{ runner.os }}-xmake-${{ hashFiles('xmake.lua', 'src/**/*.cpp', 'src/**/*.h', 'tooth.json', 'manifest.json') }}
+          restore-keys: |
+            ${{ runner.os }}-xmake-
+
+      - name: Update xmake repos
+        run: xmake repo -u
+
+      - name: Read version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $version = $tag -replace '^v', ''
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Configure
+        shell: cmd
+        run: xmake f -p windows -a x64 -m release -y
+
+      - name: Build
+        shell: cmd
+        run: xmake -y
+
+      - name: Verify output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path bin/BedrockF3/BedrockF3.dll)) {
+              Write-Error "BedrockF3.dll was not produced"
+              exit 1
+          }
+          if (-not (Test-Path bin/BedrockF3/manifest.json)) {
+              Write-Error "manifest.json was not produced"
+              exit 1
+          }
+
+      - name: Package release zip
+        shell: pwsh
+        run: Compress-Archive -Path bin/BedrockF3/* -DestinationPath BedrockF3-client-windows-x64.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: BedrockF3-client-windows-x64.zip

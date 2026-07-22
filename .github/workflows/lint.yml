@@ -1,0 +1,119 @@
+name: lint
+
+# Fast static check that catches type errors, missing includes, and other
+# compile-time issues without doing the full build, link, or prelink step.
+#
+# This is the C++ equivalent of `tsc --noEmit` + ESLint for TypeScript:
+# it parses each source file, resolves all includes, and runs the
+# standard clang-tidy + clang-analyzer static checks, but does not
+# generate code or link. Cycle time is typically under a minute, vs
+# 5-10 minutes for the full build workflow.
+#
+# Any error here is something `xmake` would also catch in `build.yml`,
+# but with much faster feedback. New contributors get type errors flagged
+# in the PR check list before the full build even starts.
+#
+# A second job runs clang-format --dry-run on every changed file.
+# Unformatted diffs fail the build. This is the C++ analog of Prettier's
+# --check flag.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint-windows:
+    name: clang-tidy
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Cache xmake packages
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.xmake
+            C:\Users\runneradmin\AppData\Local\.xmake
+          key: ${{ runner.os }}-xmake-pkgs-${{ hashFiles('xmake.lua', 'tooth.json', 'manifest.json') }}
+          restore-keys: |
+            ${{ runner.os }}-xmake-pkgs-
+
+      - name: Configure
+        shell: cmd
+        run: xmake f -p windows -a x64 -m release -y
+
+      # Reads .clang-tidy at the repo root and runs the configured check
+      # list over every translation unit. The check list is tuned to
+      # catch the bug classes that already surfaced in BedrockF3's commit
+      # history (empty catch, unused parameters, by-value params that
+      # should be const-ref). WarningsAsErrors: '*' turns every
+      # violation into a build failure.
+      - name: Run clang-tidy
+        shell: cmd
+        run: xmake check clang.tidy -q
+
+  format-windows:
+    name: clang-format
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # windows-2022 ships with LLVM 20.1.8 pre-installed (in
+      # C:\Program Files\LLVM\bin). No install step needed; we
+      # just locate the binary. Pinned-version installs via
+      # choco fail because the runner image already has a
+      # newer version, and choco refuses to downgrade.
+      - name: Locate clang-format
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $clangFormat = Get-ChildItem 'C:\Program Files\LLVM\bin\clang-format.exe' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $clangFormat) {
+            Write-Error 'clang-format.exe not found in C:\Program Files\LLVM\bin'
+            exit 1
+          }
+          $clangFormat.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          & $clangFormat.FullName --version
+
+      - name: Run clang-format --dry-run
+        shell: pwsh
+        # --Werror turns every unformatted file into a build failure.
+        # We check the whole src/ tree rather than the diff only,
+        # because the first run of clang-format on an unformatted
+        # tree produces a large diff; we'd rather surface that
+        # immediately than let it accumulate.
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $clangFormat = Get-ChildItem 'C:\Program Files\LLVM\bin\clang-format.exe' -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $clangFormat) {
+            Write-Error 'clang-format.exe not found in C:\Program Files\LLVM\bin'
+            exit 1
+          }
+          Get-ChildItem -Path 'src' -Recurse -Include '*.cpp','*.h' |
+            ForEach-Object {
+              & $clangFormat.FullName --dry-run --Werror $_.FullName
+              if ($LASTEXITCODE -ne 0) {
+                Write-Error "clang-format failed on $($_.FullName)"
+                exit $LASTEXITCODE
+              }
+            }
