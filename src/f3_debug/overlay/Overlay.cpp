@@ -26,6 +26,7 @@
 #include <mc/client/gui/screens/ScreenContext.h>
 #include <mc/deps/renderer/ViewportInfo.h>
 #include <mc/world/level/biome/Biome.h>
+#include <glm/glm.hpp>
 #include <mc/world/level/BlockPos.h>
 #include <mc/world/level/BlockSource.h>
 #include <mc/world/level/dimension/Dimension.h>
@@ -281,28 +282,22 @@ void draw(MinecraftUIRenderContext& ctx, double deltaMs) {
     const float x0      = static_cast<float>(kPanelX);
     const float y0      = static_cast<float>(kPanelY);
 
-    // Screen size. We read it from the render context's
-    // mScreenContext->viewport->size, which is the authoritative
-    // viewport size for this draw pass. The previous attempts to
-    // read screen size were wrong:
-    //   * getGuiData()->getScreenSizeData().totalScreenSize was
-    //     returning Vec2(0,0) on the user's machine even after
-    //     the game was fully initialized.
-    //   * MinecraftUIRenderContext::mArea is on the inner TextItem
-    //     struct, not the render context itself -- so an
-    //     offsetof on the context was reading into the wrong
-    //     field and produced garbage.
-    //   * Calling .get() on the TypedStorage for a reference type
-    //     (mce::ViewportInfo const&) tripped up the type
-    //     deduction and the compiler ended up trying to call .get()
-    //     on the wrong thing. Use operator-> instead -- it
-    //     cleanly returns a T* which dereferences to the actual
-    //     struct, and we can then chain through .size directly.
-    const auto& screenContext = ll::memory::dAccess<ScreenContext>(
-        &ctx, offsetof(MinecraftUIRenderContext, mScreenContext));
-    const auto& size     = screenContext.viewport->size.get();
-    const int   screenW  = static_cast<int>(size.x);
-    const int   screenH  = static_cast<int>(size.y);
+    // Screen size. We chain through the storage offsets directly
+    // to read mce::ViewportInfo::size as a glm::vec2. The previous
+    // attempts (TypedStorage::get(), TypedStorage::operator->())
+    // tripped over the fact that the viewport field stores a
+    // reference (mce::ViewportInfo const&) -- clang kept collapsing
+    // the reference in its type deduction and then complaining
+    // that the value type doesn't have a get() or -> member.
+    // Chaining the offsets directly and dAccessing the inner
+    // glm::vec2 bypasses the TypedStorage entirely.
+    const auto& size = ll::memory::dAccess<glm::vec2>(
+        &ctx,
+        offsetof(MinecraftUIRenderContext, mScreenContext)
+        + offsetof(ScreenContext, viewport)
+        + offsetof(mce::ViewportInfo, size));
+    const int screenW = static_cast<int>(size.x);
+    const int screenH = static_cast<int>(size.y);
 
     const auto right = buildRightLines(screenW, screenH);
 
