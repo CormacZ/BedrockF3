@@ -80,3 +80,65 @@ jobs:
           path: BedrockF3-client-windows-x64.zip
           if-no-files-found: error
           retention-days: 7
+
+  # ASan + UBSan build check. Compiles the same source files with
+  # -fsanitize=address,undefined -g. If the code is sanitizer-
+  # incompatible (missing annotations, intrinsic assumptions that
+  # trigger UBSan, link-time ASan runtime issues), this build fails.
+  # The output is not a release artifact; it is a verification pass.
+  #
+  # Marked continue-on-error: true while the target is new -- the
+  # first few runs may surface pre-existing issues that need
+  # fixes (e.g. an intentional use-after-free that needs a
+  # __attribute__((no_sanitize_address)) annotation). Once the
+  # build is clean on main, the continue-on-error flag can come
+  # off and the ASan build becomes a required check.
+  asan-windows:
+    name: Windows ASan build
+    runs-on: windows-2022
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Install xmake
+        uses: xmake-io/github-action-setup-xmake@v1
+        with:
+          xmake-version: latest
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Cache xmake packages
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.xmake
+            C:\Users\runneradmin\AppData\Local\.xmake
+          key: ${{ runner.os }}-xmake-pkgs-${{ hashFiles('xmake.lua', 'tooth.json', 'manifest.json') }}
+          restore-keys: |
+            ${{ runner.os }}-xmake-pkgs-
+
+      - name: Update xmake repos
+        run: xmake repo -u
+
+      - name: Configure
+        shell: cmd
+        run: xmake f -p windows -a x64 -m release -y
+
+      - name: Build ASan target
+        shell: cmd
+        run: xmake build BedrockF3-asan -y
+
+      - name: Verify ASan output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path bin/BedrockF3-asan/BedrockF3-asan.dll)) {
+              Write-Error "BedrockF3-asan.dll was not produced"
+              exit 1
+          }

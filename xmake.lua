@@ -109,3 +109,95 @@ target("BedrockF3")
             }
         )
     end)
+end
+
+-- =============================================================================
+-- Sanitizer build (ASan + UBSan)
+-- =============================================================================
+-- Separate target that compiles the same source files with
+-- -fsanitize=address,undefined -g. Used as a CI build check to
+-- catch issues at compile time (sanitizer-incompatible code,
+-- missing annotations, link-time ASan runtime resolution).
+--
+-- For runtime ASan testing of the actual loaded DLL, the user
+-- needs to:
+--   1. Build this target: xmake build BedrockF3-asan
+--   2. Copy bin/BedrockF3-asan/BedrockF3-asan.dll into the
+--      LeviLauncher plugins/ directory.
+--   3. Make sure clang_rt.asan_dynamic-x86_64.dll is on the
+--      PATH (it ships with the LLVM toolchain installed by
+--      the github action).
+--
+-- set_default(false) means a bare `xmake build` skips this
+-- target -- only the main BedrockF3 DLL is built by default.
+-- To build the ASan DLL, pass the target name explicitly:
+--   xmake build BedrockF3-asan
+--
+-- BedrockF3 does not have unit tests yet. Once doctest is
+-- added (per the dev-tools research), a third target
+-- BedrockF3-tests will run the same source compiled with
+-- sanitizers plus the test binary.
+if is_plat("windows") then
+target("BedrockF3-asan")
+    set_default(false)
+    add_cxflags(
+        "/EHa",
+        "/utf-8",
+        "-fsanitize=address",
+        "-fsanitize=undefined",
+        "-fno-omit-frame-pointer",
+        "-g"
+    )
+    add_shflags(
+        "/DELAYLOAD:bedrock_runtime.dll",
+        "-fsanitize=address",
+        "-fsanitize=undefined"
+    )
+    add_defines(
+        "NOMINMAX",
+        "UNICODE",
+        "_HAS_CXX23=1",
+        "LL_PLAT_C"
+    )
+    set_toolchains("clang-cl")
+    add_packages("levilamina")
+    set_exceptions("none")
+    set_kind("shared")
+    set_languages("c++20")
+    set_symbols("debug")
+    set_optimize("aggressive")
+    add_files("src/**.cpp")
+    add_includedirs("src")
+    add_links("dxgi", "dxguid")
+    before_link(function(target)
+        import("lib.detect.find_file")
+        import("core.project.config")
+
+        os.addenvs(target:pkgenvs())
+
+        local libdir = path.join(config.builddir(), ".prelink", "lib")
+        if os.exists(libdir) then os.rm(libdir) end
+        os.mkdir(libdir)
+
+        local data  = assert(find_file("bedrock_runtime_data", { "$(env PATH)" }), "Cannot find bedrock_runtime_data")
+        local link  = assert(find_file("prelink.exe",          { "$(env PATH)" }), "Cannot find prelink.exe")
+
+        os.runv(link, {
+            string.format("client-%s-%s", target:plat(), target:arch()),
+            path.join(config.builddir(), ".prelink"),
+            data,
+            table.unpack(target:objectfiles())
+        })
+
+        target:add("linkdirs", libdir)
+        target:add("links", "bedrock_runtime_api")
+    end)
+    after_build(function(target)
+        local output_dir = path.join(os.projectdir(), "bin", target:name())
+        os.rm(output_dir)
+
+        os.vcp(target:targetfile(),  format("%s/", output_dir))
+        os.vcp(target:symbolfile(),  format("%s/", output_dir))
+    end)
+end
+end
